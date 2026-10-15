@@ -1,0 +1,22 @@
+Squeeze compresses your videos to share them more easily or to get your storage back. Everything happens on your phone: no account, no internet permission, no tracking.
+
+<b>Compress</b>
+• Share one or many videos to Squeeze from the gallery, or pick them in the app
+• Built-in presets (share quickly, balanced archive, maximum savings) and your own, with every FFmpeg parameter, a live command preview and a size estimate
+• Runs in the background with a progress notification; one file at a time
+
+<b>When it's done</b>
+• Reshare the results, save them next to the originals, or replace the originals (with a check that the new file is good before anything is overwritten)
+• Dates, albums and favourites are kept; location is optional
+
+<b>History and stats</b>
+• Every batch with sizes, savings, preset and the exact command used
+• Totals per week, month and year, per preset
+
+<b>Auto compression</b>
+• Compress old videos overnight or while charging, with a different preset by video age
+• Dry run, battery and charger conditions, skipped folders
+• Optional automation API (token protected) for Tasker, MacroDroid and Samsung Routines
+
+<b>Free software</b>
+Squeeze is licensed under the GNU GPL v3 and includes FFmpeg with x264 and x265.

@@ -1,0 +1,1 @@
+First release: batch compression with presets, share target, completion actions (reshare, save, replace), history and stats, auto compression with scheduling and an automation API.

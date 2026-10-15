@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Preset files shared from the Presets screen. -->
+    <cache-path name="presets" path="presets/" />
+    <!-- Staged compression results (resharing, milestone 4). -->
+    <files-path name="staging" path="staging/" />
+</paths>

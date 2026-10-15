@@ -1,0 +1,1 @@
+Compress videos in batch, by hand or automatically, powered by FFmpeg.

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The About screen opens these by name, so the resource shrinker must not drop them. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@raw/squeeze_license,@raw/license*,@raw/source" />
