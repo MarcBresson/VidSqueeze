@@ -129,8 +129,3 @@ kotlin {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
-
-// Hilt 2.57 bundles an older kotlin-metadata-jvm that cannot read metadata written by Kotlin 2.4.
-configurations.configureEach {
-    resolutionStrategy.force("org.jetbrains.kotlin:kotlin-metadata-jvm:${libs.versions.kotlin.get()}")
-}
