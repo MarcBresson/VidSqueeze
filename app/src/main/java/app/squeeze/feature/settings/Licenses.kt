@@ -1,7 +1,7 @@
 package app.squeeze.feature.settings
 
 /** Where the project's source is published; null hides the link until a public repository exists. */
-val SOURCE_URL: String? = null
+val SOURCE_URL: String? = "https://github.com/MarcBresson/VidSqueeze"
 
 /** A bundled licence text (`res/raw/<rawName>.txt`), shown by name in About. */
 data class LicenseEntry(val title: String, val rawName: String)
