@@ -2,7 +2,6 @@ import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
@@ -19,7 +18,7 @@ val releaseKeystore = signing("storeFile", "SQUEEZE_KEYSTORE_FILE")?.let { rootP
 
 android {
     namespace = "app.squeeze"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "app.squeeze"
