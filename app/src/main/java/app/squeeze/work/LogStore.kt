@@ -52,13 +52,13 @@ class LogWriter internal constructor(private val out: BufferedWriter, private va
     private var written = 0L
     private var truncated = false
 
-    internal fun writeRaw(line: String) = synchronized(this) {
+    internal fun writeRaw(line: String): Unit = synchronized(this) {
         out.write(line)
         out.newLine()
         written += line.toByteArray().size + 1
     }
 
-    fun append(line: String) = synchronized(this) {
+    fun append(line: String): Unit = synchronized(this) {
         if (truncated) return
         val size = line.toByteArray().size + 1
         if (written + size > maxBytes) {

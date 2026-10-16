@@ -2,9 +2,9 @@
 agp = "9.4.1"
 kotlin = "2.4.21"
 coreKtx = "1.19.1"
-lifecycle = "2.8.7"
-activityCompose = "1.9.3"
-composeBom = "2025.08.01"
+lifecycle = "2.11.0"
+activityCompose = "1.13.0"
+composeBom = "2026.09.00"
 junit = "4.13.2"
 serialization = "1.11.0"
 coroutines = "1.11.0"
@@ -14,11 +14,11 @@ ffmpegKit = "8.1.9"
 ksp = "2.3.4"
 room = "2.8.5"
 hilt = "2.60.1"
-androidxHilt = "1.2.0"
+androidxHilt = "1.4.0"
 work = "2.10.0"
 testCore = "1.6.1"
 datastore = "1.1.1"
-navigation = "2.8.5"
+navigation = "2.10.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -47,7 +47,7 @@ hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref
 hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
 androidx-hilt-work = { group = "androidx.hilt", name = "hilt-work", version.ref = "androidxHilt" }
 androidx-hilt-compiler = { group = "androidx.hilt", name = "hilt-compiler", version.ref = "androidxHilt" }
-androidx-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "androidxHilt" }
+androidx-hilt-lifecycle-viewmodel-compose = { group = "androidx.hilt", name = "hilt-lifecycle-viewmodel-compose", version.ref = "androidxHilt" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 androidx-test-core = { group = "androidx.test", name = "core-ktx", version.ref = "testCore" }
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }

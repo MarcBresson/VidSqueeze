@@ -48,12 +48,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -70,7 +71,6 @@ import java.time.DayOfWeek
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -225,7 +225,7 @@ private fun WindowEditor(window: TimeWindow, onChange: (TimeWindow) -> Unit, onR
                 FilterChip(
                     selected = day in window.days,
                     onClick = { onChange(window.copy(days = if (day in window.days) window.days - day else window.days + day)) },
-                    label = { Text(day.getDisplayName(TextStyle.SHORT, Locale.getDefault())) },
+                    label = { Text(day.getDisplayName(TextStyle.SHORT, LocalLocale.current.platformLocale)) },
                 )
             }
         }
