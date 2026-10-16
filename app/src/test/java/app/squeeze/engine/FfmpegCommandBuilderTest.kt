@@ -224,6 +224,47 @@ class FfmpegCommandBuilderTest {
         assertTrue(invalid(FfmpegParams(rateControl = RateControl.BitrateKbps(2000))).issues.any { it.code == "rc_sw_crf" })
     }
 
+    private val hevcHw = HardwareEncoder(
+        VideoCodec.H265, "c2.vendor.hevc.encoder", supportsCq = true, qualityRange = 1..100, bitrateRangeKbps = 1..100_000,
+    )
+    private val avcHwNoCq = HardwareEncoder(
+        VideoCodec.H264, "c2.vendor.avc.encoder", supportsCq = false, qualityRange = null, bitrateRangeKbps = 1..50_000,
+    )
+    private val deviceOptions = BuildOptions(hardware = HardwareEncoders(mapOf(VideoCodec.H265 to hevcHw, VideoCodec.H264 to avcHwNoCq)))
+    private val hwParams = FfmpegParams(encoderKind = EncoderKind.HARDWARE_MEDIACODEC, pixelFormat = PixelFormat.YUV420P)
+
+    @Test
+    fun hardwareEncoderIsPinnedByName() {
+        val args = ok(hwParams.copy(rateControl = RateControl.BitrateKbps(5000)), options = deviceOptions).args
+        assertTrue(args.zipWithNext().containsAll(listOf("-c:v" to "hevc_mediacodec", "-codec_name" to "c2.vendor.hevc.encoder", "-b:v" to "5000k")))
+    }
+
+    @Test
+    fun hardwareConstantQualityNeedsDeviceSupportAndRange() {
+        val cq = hwParams.copy(rateControl = RateControl.ConstantQuality(60))
+        val args = ok(cq, options = deviceOptions).args
+        assertTrue(args.zipWithNext().containsAll(listOf("-bitrate_mode" to "cq", "-global_quality" to "60")))
+
+        assertTrue(invalid(cq.copy(rateControl = RateControl.ConstantQuality(101)), options = deviceOptions).issues.any { it.code == "cq_range" })
+        assertTrue(invalid(cq.copy(rateControl = RateControl.ConstantQuality(0)), options = deviceOptions).issues.any { it.code == "cq_range" })
+        assertTrue(invalid(cq.copy(videoCodec = VideoCodec.H264), options = deviceOptions).issues.any { it.code == "rc_hw_cq" })
+    }
+
+    @Test
+    fun hardwareNeedsAnEncoderOnTheDevice() {
+        val p = hwParams.copy(rateControl = RateControl.BitrateKbps(5000))
+        val none = BuildOptions(hardware = HardwareEncoders())
+        assertTrue(invalid(p, options = none).issues.any { it.code == "hw_unavailable" })
+        // Callers that did not probe are not blocked, and get no -codec_name.
+        assertTrue("-codec_name" !in ok(p).args)
+    }
+
+    @Test
+    fun hardwareBitrateOutsideTheDeviceRangeOnlyWarns() {
+        val r = ok(hwParams.copy(videoCodec = VideoCodec.H264, rateControl = RateControl.BitrateKbps(80_000)), options = deviceOptions)
+        assertTrue(r.issues.any { it.code == "hw_bitrate_range" && it.severity == Severity.WARNING })
+    }
+
     @Test
     fun hardwareEncoderUsesBitrate() {
         val p = FfmpegParams(

@@ -27,6 +27,8 @@ object SizeEstimator {
     fun estimateBytes(params: FfmpegParams, source: SourceInfo, sourceBytes: Long): Long? {
         if (source.durationMs <= 0 || sourceBytes <= 0) return null
         if (params.videoCodec == VideoCodec.COPY && params.audioCodec == AudioCodec.COPY) return sourceBytes
+        // Hardware constant quality is a device specific scale, so no bits-per-pixel curve applies.
+        if (params.videoCodec != VideoCodec.COPY && params.rateControl is RateControl.ConstantQuality) return null
         val seconds = source.durationMs / 1000.0
 
         val sourceAudioBps = if (source.hasAudio) ASSUMED_AUDIO_KBPS * 1000.0 else 0.0
@@ -47,11 +49,7 @@ object SizeEstimator {
         if (rate is RateControl.BitrateKbps) return rate.kbps * 1000.0
         if (rate is RateControl.PercentOfSource) return sourceVideoBps * rate.percent / 100.0
 
-        val crf = when (rate) {
-            is RateControl.Crf -> rate.value
-            is RateControl.ConstantQuality -> rate.value
-            else -> error("unreachable")
-        }
+        val crf = (rate as? RateControl.Crf)?.value ?: error("unreachable")
         val curve = curves.getValue(params.videoCodec)
         val bpp = curve.bppAtRef * 2.0.pow((curve.refCrf - crf) / 6.0)
         val bps = pixelsPerSecond(params, source) * bpp

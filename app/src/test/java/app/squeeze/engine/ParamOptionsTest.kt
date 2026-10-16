@@ -63,4 +63,56 @@ class ParamOptionsTest {
         assertEquals(RateControl.Crf(31), ParamOptions.withRateMode(bitrate, RateMode.CRF).rateControl)
         assertEquals(RateMode.PERCENT, ParamOptions.rateMode(ParamOptions.withRateMode(crf, RateMode.PERCENT).rateControl))
     }
+
+    private val hevcHw = HardwareEncoder(VideoCodec.H265, "hevc", supportsCq = true, qualityRange = 1..100, bitrateRangeKbps = null)
+    private val avcHw = HardwareEncoder(VideoCodec.H264, "avc", supportsCq = false, qualityRange = null, bitrateRangeKbps = null)
+    private val device = HardwareEncoders(mapOf(VideoCodec.H265 to hevcHw, VideoCodec.H264 to avcHw))
+
+    @Test
+    fun `hardware has no crf and only some devices have quality mode`() {
+        val sw = FfmpegParams(videoCodec = VideoCodec.H265)
+        assertTrue(ParamOptions.isRateModeAvailable(sw, RateMode.CRF, device))
+        assertTrue(!ParamOptions.isRateModeAvailable(sw, RateMode.BITRATE, device))
+
+        val hw = sw.copy(encoderKind = EncoderKind.HARDWARE_MEDIACODEC)
+        assertTrue(!ParamOptions.isRateModeAvailable(hw, RateMode.CRF, device))
+        assertTrue(ParamOptions.isRateModeAvailable(hw, RateMode.QUALITY, device))
+        assertTrue(ParamOptions.isRateModeAvailable(hw, RateMode.BITRATE, device))
+        assertTrue(!ParamOptions.isRateModeAvailable(hw.copy(videoCodec = VideoCodec.H264), RateMode.QUALITY, device))
+    }
+
+    @Test
+    fun `switching to hardware replaces crf by a quality or a bitrate`() {
+        val sw = FfmpegParams(videoCodec = VideoCodec.H265, rateControl = RateControl.Crf(28))
+        val cq = ParamOptions.withEncoder(sw, VideoCodec.H265, EncoderKind.HARDWARE_MEDIACODEC, device)
+        assertEquals(EncoderKind.HARDWARE_MEDIACODEC, cq.encoderKind)
+        assertEquals(RateControl.ConstantQuality(60), cq.rateControl) // 1 + 99 * 0.6, rounded
+
+        val bitrate = ParamOptions.withEncoder(sw, VideoCodec.H264, EncoderKind.HARDWARE_MEDIACODEC, device)
+        assertEquals(RateControl.BitrateKbps(4_000), bitrate.rateControl)
+    }
+
+    @Test
+    fun `switching back to software restores a crf and keeps bitrates out`() {
+        val hw = FfmpegParams(
+            videoCodec = VideoCodec.H265, encoderKind = EncoderKind.HARDWARE_MEDIACODEC,
+            rateControl = RateControl.BitrateKbps(3_000),
+        )
+        val sw = ParamOptions.withEncoder(hw, VideoCodec.H265, EncoderKind.SOFTWARE, device)
+        assertEquals(EncoderKind.SOFTWARE, sw.encoderKind)
+        assertEquals(RateControl.Crf(31), sw.rateControl)
+    }
+
+    @Test
+    fun `hardware quality is clamped when the codec changes`() {
+        val hw = FfmpegParams(
+            videoCodec = VideoCodec.H265, encoderKind = EncoderKind.HARDWARE_MEDIACODEC,
+            rateControl = RateControl.ConstantQuality(95),
+        )
+        val narrow = HardwareEncoders(mapOf(VideoCodec.H264 to avcHw.copy(supportsCq = true, qualityRange = 1..50)))
+        assertEquals(
+            RateControl.ConstantQuality(50),
+            ParamOptions.withEncoder(hw, VideoCodec.H264, EncoderKind.HARDWARE_MEDIACODEC, narrow).rateControl,
+        )
+    }
 }

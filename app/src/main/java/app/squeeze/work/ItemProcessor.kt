@@ -7,11 +7,13 @@ import android.net.Uri
 import android.provider.MediaStore
 import androidx.core.net.toUri
 import app.squeeze.data.BatchItemEntity
+import app.squeeze.engine.BuildOptions
 import app.squeeze.engine.BuildResult
 import app.squeeze.engine.CodecContainerMatrix
 import app.squeeze.engine.EncodeProgress
 import app.squeeze.engine.FfmpegCommandBuilder
 import app.squeeze.engine.FfmpegKitEngine
+import app.squeeze.engine.HardwareEncoderProbe
 import app.squeeze.engine.Issue
 import app.squeeze.engine.Preset
 import app.squeeze.engine.RunResult
@@ -35,6 +37,7 @@ class ItemProcessor @Inject constructor(
     @ApplicationContext private val context: Context,
     private val engine: FfmpegKitEngine,
     private val current: CurrentJob,
+    private val hardware: HardwareEncoderProbe,
     private val logs: LogStore = LogStore(context),
 ) {
     val stagingDir get() = File(context.filesDir, "staging")
@@ -67,6 +70,7 @@ class ItemProcessor @Inject constructor(
             // SAF parameters are single use: the probe consumed the first one.
             val build = FfmpegCommandBuilder.build(
                 preset.params, source, engine.inputFor(uri), output.absolutePath, preset.export,
+                BuildOptions(hardware = hardware.encoders),
             )
             val command = when (build) {
                 is BuildResult.Invalid -> return ItemOutcome.Failed(build.issues.errorText(), null)

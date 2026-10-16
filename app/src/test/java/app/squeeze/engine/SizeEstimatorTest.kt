@@ -46,6 +46,12 @@ class SizeEstimatorTest {
     }
 
     @Test
+    fun `hardware constant quality has no estimate`() {
+        val cq = FfmpegParams(encoderKind = EncoderKind.HARDWARE_MEDIACODEC, rateControl = RateControl.ConstantQuality(60))
+        assertNull(SizeEstimator.estimateBytes(cq, fourK, bytes))
+    }
+
+    @Test
     fun `explicit bitrate and percent modes are honoured`() {
         val kbps = estimate(FfmpegParams(videoCodec = VideoCodec.H264, rateControl = RateControl.BitrateKbps(4_000), audioCodec = AudioCodec.AAC, audioBitrateK = 128))
         // (4000 + 128) kbit/s for 60 s = ~31 MB

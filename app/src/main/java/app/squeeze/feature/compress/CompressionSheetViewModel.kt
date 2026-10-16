@@ -9,16 +9,20 @@ import app.squeeze.data.PresetRepository
 import app.squeeze.data.SettingsRepository
 import app.squeeze.data.SourceImporter
 import app.squeeze.engine.BuiltInPresets
+import app.squeeze.engine.BuildOptions
 import app.squeeze.engine.CommandPreview
 import app.squeeze.engine.ExportOptions
 import app.squeeze.engine.FfmpegKitEngine
 import app.squeeze.engine.FfmpegParams
+import app.squeeze.engine.HardwareEncoderProbe
+import app.squeeze.engine.HardwareEncoders
 import app.squeeze.engine.Preset
 import app.squeeze.engine.SizeEstimator
 import app.squeeze.engine.SourceInfo
 import app.squeeze.work.QueueManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,6 +54,8 @@ data class SheetUi(
     val estimatedBytes: Long? = null,
     val preview: CommandPreview = CommandPreview.of(BuiltInPresets.share, null),
     val message: SheetMessage? = null,
+    /** Hardware encoders of this device; empty until probed and on devices without any. */
+    val hardware: HardwareEncoders = HardwareEncoders(),
 ) {
     val dirty: Boolean get() = draft.params != base.params || draft.export != base.export
     val canStart: Boolean get() = !preview.hasErrors
@@ -67,6 +73,7 @@ class CompressionSheetViewModel @Inject constructor(
     private val queue: QueueManager,
     private val importer: SourceImporter,
     private val engine: FfmpegKitEngine,
+    private val hardwareProbe: HardwareEncoderProbe,
 ) : ViewModel() {
     private val _ui = MutableStateFlow(SheetUi())
     val ui: StateFlow<SheetUi> = _ui.asStateFlow()
@@ -79,6 +86,11 @@ class CompressionSheetViewModel @Inject constructor(
     private var selectionMade = false
 
     init {
+        viewModelScope.launch(Dispatchers.Default) {
+            val found = hardwareProbe.encoders
+            _ui.update { it.copy(hardware = found) }
+            recompute()
+        }
         viewModelScope.launch { presets.observeAll().collect { list -> onPresetsChanged(list) } }
         viewModelScope.launch { settings.defaultPresetId.collect { id -> _ui.update { it.copy(defaultPresetId = id) } } }
         viewModelScope.launch {
@@ -226,7 +238,10 @@ class CompressionSheetViewModel @Inject constructor(
                 val perFile = SizeEstimator.estimateBytes(ui.draft.params, s, firstFileBytes)
                 if (perFile != null && firstFileBytes > 0) (perFile.toDouble() / firstFileBytes * ui.totalBytes).toLong() else null
             }
-            ui.copy(preview = CommandPreview.of(ui.draft, source), estimatedBytes = estimate)
+            ui.copy(
+                preview = CommandPreview.of(ui.draft, source, BuildOptions(hardware = ui.hardware)),
+                estimatedBytes = estimate,
+            )
         }
     }
 

@@ -152,4 +152,24 @@ class FfmpegKitEngineTest {
         val result = engine.run(args, 1000)
         assertEquals(result.toString(), RunResult.Success, result)
     }
+
+    /** The hardware path leans on these options (see FfmpegCommandBuilder), so the bundled build must have them. `-global_quality` is a generic codec option, so `-h encoder` does not list it. */
+    @Test
+    fun mediaCodecEncodersHaveTheOptionsWeUse() = runBlocking {
+        for (encoder in listOf("h264_mediacodec", "hevc_mediacodec")) {
+            val help = StringBuffer()
+            val result = engine.run(listOf("-hide_banner", "-h", "encoder=$encoder"), 1000, onLog = { help.appendLine(it) })
+            delay(500) // the log callback can lag behind completion
+            assertEquals(result.toString(), RunResult.Success, result)
+            for (option in listOf("-bitrate_mode", "-codec_name", "-qp_i_min")) {
+                assertTrue("$encoder lacks $option:\n$help", help.contains(option))
+            }
+        }
+    }
+
+    @Test
+    fun hardwareEncoderProbeDoesNotThrow() {
+        val found = HardwareEncoderProbe().encoders
+        found.byCodec.values.forEach { assertTrue(it.name, it.name.isNotBlank()) }
+    }
 }

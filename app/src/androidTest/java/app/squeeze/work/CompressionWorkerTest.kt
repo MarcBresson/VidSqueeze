@@ -25,6 +25,7 @@ import app.squeeze.engine.BuiltInPresets
 import app.squeeze.engine.EncoderPreset
 import app.squeeze.engine.ExportMode
 import app.squeeze.engine.FfmpegKitEngine
+import app.squeeze.engine.HardwareEncoderProbe
 import app.squeeze.engine.Preset
 import app.squeeze.engine.RunResult
 import app.squeeze.finalize.BatchCompletion
@@ -67,7 +68,7 @@ class CompressionWorkerTest {
         db = Room.inMemoryDatabaseBuilder(context, SqueezeDatabase::class.java).allowMainThreadQueries().build()
         repository = QueueRepository(db.batchDao(), db.batchItemDao())
         current = CurrentJob(engine)
-        processor = ItemProcessor(context, engine, current)
+        processor = ItemProcessor(context, engine, current, HardwareEncoderProbe())
         dir = File(context.cacheDir, "worker-test").apply { deleteRecursively(); mkdirs() }
         processor.stagingDir.deleteRecursively()
     }

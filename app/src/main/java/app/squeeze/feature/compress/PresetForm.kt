@@ -31,9 +31,11 @@ import app.squeeze.engine.AudioCodec
 import app.squeeze.engine.CodecContainerMatrix
 import app.squeeze.engine.Container
 import app.squeeze.engine.DynamicRange
+import app.squeeze.engine.EncoderKind
 import app.squeeze.engine.EncoderPreset
 import app.squeeze.engine.ExportMode
 import app.squeeze.engine.FfmpegParams
+import app.squeeze.engine.HardwareEncoders
 import app.squeeze.engine.ParamOptions
 import app.squeeze.engine.ParamOptions.label
 import app.squeeze.engine.PixelFormat
@@ -49,7 +51,7 @@ import java.time.LocalDate
 @Composable
 fun PresetForm(ui: SheetUi, vm: CompressionSheetViewModel, modifier: Modifier = Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        EncodingSection(ui.draft.params, vm)
+        EncodingSection(ui.draft.params, ui.hardware, vm)
         ExportSection(ui, vm)
     }
 }
@@ -84,32 +86,44 @@ private fun Choice(selected: Boolean, label: String, enabled: Boolean = true, on
 // ---------------------------------------------------------------------------------------------
 
 @Composable
-private fun EncodingSection(p: FfmpegParams, vm: CompressionSheetViewModel) {
+private fun EncodingSection(p: FfmpegParams, hardware: HardwareEncoders, vm: CompressionSheetViewModel) {
     SectionTitle(stringResource(R.string.sec_encoding))
 
     // Video codec
     Label(stringResource(R.string.enc_video))
+    val hw = ParamOptions.isHardware(p)
     Chips {
         VideoCodec.entries.forEach { c ->
-            Choice(p.videoCodec == c, c.label()) { vm.editParams { ParamOptions.withVideoCodec(it, c) } }
+            Choice(p.videoCodec == c && !hw, c.label()) {
+                vm.editParams { ParamOptions.withEncoder(it, c, EncoderKind.SOFTWARE, hardware) }
+            }
+        }
+        // Only the hardware encoders this device really has.
+        hardware.codecs.forEach { c ->
+            Choice(p.videoCodec == c && hw, stringResource(R.string.enc_codec_hw, c.label())) {
+                vm.editParams { ParamOptions.withEncoder(it, c, EncoderKind.HARDWARE_MEDIACODEC, hardware) }
+            }
         }
     }
-    when (p.videoCodec) {
-        VideoCodec.AV1 -> Note(stringResource(R.string.enc_av1_note))
-        VideoCodec.COPY -> Note(stringResource(R.string.enc_copy_note))
-        else -> Unit
+    when {
+        hw -> Note(stringResource(R.string.enc_hw_note))
+        p.videoCodec == VideoCodec.AV1 -> Note(stringResource(R.string.enc_av1_note))
+        p.videoCodec == VideoCodec.COPY -> Note(stringResource(R.string.enc_copy_note))
     }
 
     if (ParamOptions.usesRateControl(p)) {
-        RateSection(p, vm)
-        Label(stringResource(R.string.enc_speed, p.encoderPreset.ffName))
-        Slider(
-            value = p.encoderPreset.ordinal.toFloat(),
-            onValueChange = { v -> vm.editParams { it.copy(encoderPreset = EncoderPreset.entries[v.toInt()]) } },
-            valueRange = 0f..(EncoderPreset.entries.size - 1).toFloat(),
-            steps = EncoderPreset.entries.size - 2,
-        )
-        Note(stringResource(R.string.enc_speed_hint))
+        RateSection(p, hardware, vm)
+        // Hardware encoders have no effort setting that ffmpeg can pass on.
+        if (!hw) {
+            Label(stringResource(R.string.enc_speed, p.encoderPreset.ffName))
+            Slider(
+                value = p.encoderPreset.ordinal.toFloat(),
+                onValueChange = { v -> vm.editParams { it.copy(encoderPreset = EncoderPreset.entries[v.toInt()]) } },
+                valueRange = 0f..(EncoderPreset.entries.size - 1).toFloat(),
+                steps = EncoderPreset.entries.size - 2,
+            )
+            Note(stringResource(R.string.enc_speed_hint))
+        }
 
         FrameRateAndResolution(p, vm)
     }
@@ -120,13 +134,25 @@ private fun EncodingSection(p: FfmpegParams, vm: CompressionSheetViewModel) {
 }
 
 @Composable
-private fun RateSection(p: FfmpegParams, vm: CompressionSheetViewModel) {
+private fun RateSection(p: FfmpegParams, hardware: HardwareEncoders, vm: CompressionSheetViewModel) {
     Label(stringResource(R.string.enc_rate))
     val mode = ParamOptions.rateMode(p.rateControl)
-    Chips {
-        Choice(mode == RateMode.CRF, stringResource(R.string.enc_mode_crf)) { vm.editParams { ParamOptions.withRateMode(it, RateMode.CRF) } }
-        Choice(mode == RateMode.BITRATE, stringResource(R.string.enc_mode_bitrate)) { vm.editParams { ParamOptions.withRateMode(it, RateMode.BITRATE) } }
-        Choice(mode == RateMode.PERCENT, stringResource(R.string.enc_mode_percent)) { vm.editParams { ParamOptions.withRateMode(it, RateMode.PERCENT) } }
+    // Software encoders only have CRF, so the mode chips matter only for hardware.
+    if (ParamOptions.isHardware(p)) {
+        Chips {
+            RateMode.entries.forEach { m ->
+                val label = when (m) {
+                    RateMode.CRF -> R.string.enc_mode_crf
+                    RateMode.QUALITY -> R.string.enc_mode_quality
+                    RateMode.BITRATE -> R.string.enc_mode_bitrate
+                    RateMode.PERCENT -> R.string.enc_mode_percent
+                }
+                Choice(mode == m, stringResource(label), enabled = ParamOptions.isRateModeAvailable(p, m, hardware)) {
+                    vm.editParams { ParamOptions.withRateMode(it, m, hardware) }
+                }
+            }
+        }
+        Note(stringResource(if (hardware[p.videoCodec]?.supportsCq == true) R.string.enc_hw_no_crf else R.string.enc_hw_no_crf_cq))
     }
     when (val rate = p.rateControl) {
         is RateControl.Crf -> {
@@ -151,7 +177,22 @@ private fun RateSection(p: FfmpegParams, vm: CompressionSheetViewModel) {
         is RateControl.PercentOfSource -> NumberField(
             stringResource(R.string.enc_percent_label), rate.percent, 5..100,
         ) { v -> vm.editParams { it.copy(rateControl = RateControl.PercentOfSource(v)) } }
-        is RateControl.ConstantQuality -> Unit // hardware encoders only, not offered yet
+        is RateControl.ConstantQuality -> {
+            val range = hardware[p.videoCodec]?.qualityRange
+            if (range != null && range.first < range.last) {
+                Text(stringResource(R.string.enc_quality_value, rate.value, range.last))
+                Slider(
+                    value = rate.value.toFloat(),
+                    onValueChange = { v -> vm.editParams { it.copy(rateControl = RateControl.ConstantQuality(v.toInt())) } },
+                    valueRange = range.first.coerceAtLeast(1).toFloat()..range.last.toFloat(),
+                )
+            } else {
+                NumberField(stringResource(R.string.enc_mode_quality), rate.value, 1..100) { v ->
+                    vm.editParams { it.copy(rateControl = RateControl.ConstantQuality(v)) }
+                }
+            }
+            Note(stringResource(R.string.enc_cq_note))
+        }
     }
 }
 

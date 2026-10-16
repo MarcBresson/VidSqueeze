@@ -7,6 +7,11 @@ data class BuildOptions(
     val threads: Int? = null,
     /** Whether the bundled ffmpeg ships libzimg (`zscale`), needed for HDR tone mapping. */
     val hasZscale: Boolean = true,
+    /**
+     * Hardware encoders the device reports. `null` skips the availability checks (and `-codec_name`),
+     * for callers and tests that do not probe.
+     */
+    val hardware: HardwareEncoders? = null,
 )
 
 sealed interface BuildResult {
@@ -56,14 +61,13 @@ object FfmpegCommandBuilder {
 
         val plan = plan(params, source, container, options, issues)
         if (plan == null || issues.hasErrors) return BuildResult.Invalid(issues)
-
         val args = mutableListOf("-y")
         options.threads?.let { args += listOf("-threads", it.toString()) }
         args += listOf("-i", input, "-map", "0:v:0")
         if (source.hasAudio) args += listOf("-map", "0:a?")
         args += "-dn"
 
-        args += videoArgs(params, source, container, plan, issues)
+        args += videoArgs(params, source, container, plan, options, issues)
         if (issues.hasErrors) return BuildResult.Invalid(issues)
         args += audioArgs(params, source)
         args += metadataArgs(export)
@@ -96,6 +100,10 @@ object FfmpegCommandBuilder {
 
         if (params.encoderKind == EncoderKind.HARDWARE_MEDIACODEC && codec != VideoCodec.H264 && codec != VideoCodec.H265) {
             issues += error("hw_codec", "Hardware encoding supports only H.264 and H.265.")
+            return null
+        }
+        if (params.encoderKind == EncoderKind.HARDWARE_MEDIACODEC && options.hardware != null && options.hardware[codec] == null) {
+            issues += error("hw_unavailable", "This device has no hardware ${codec.name} encoder. Pick a software encoder.")
             return null
         }
 
@@ -136,6 +144,7 @@ object FfmpegCommandBuilder {
         source: SourceInfo,
         container: Container,
         plan: Plan,
+        options: BuildOptions,
         issues: MutableList<Issue>,
     ): List<String> {
         if (plan.copyVideo) return listOf("-c:v", "copy")
@@ -146,19 +155,31 @@ object FfmpegCommandBuilder {
         val rc = params.rateControl
 
         if (hardware) {
+            val device = options.hardware?.get(codec)
             args += listOf("-c:v", if (codec == VideoCodec.H264) "h264_mediacodec" else "hevc_mediacodec")
+            // Without this Android picks the mime type's default encoder, which may be a software one.
+            device?.let { args += listOf("-codec_name", it.name) }
             when (rc) {
                 is RateControl.Crf -> issues += error("rc_hw_crf", "Hardware encoders have no CRF mode, choose a bitrate or constant quality.")
-                is RateControl.BitrateKbps -> args += listOf("-bitrate_mode", "vbr", "-b:v", "${rc.kbps}k")
+                is RateControl.BitrateKbps -> args += hardwareVbr(rc.kbps, device, issues)
                 is RateControl.PercentOfSource -> {
                     val sourceKbps = source.videoBitrateKbps
                     if (sourceKbps == null) {
                         issues += error("rc_unknown_bitrate", "The source bitrate is unknown, use an absolute bitrate.")
                     } else {
-                        args += listOf("-bitrate_mode", "vbr", "-b:v", "${(sourceKbps * rc.percent / 100).coerceAtLeast(100)}k")
+                        args += hardwareVbr((sourceKbps * rc.percent / 100).coerceAtLeast(100), device, issues)
                     }
                 }
-                is RateControl.ConstantQuality -> args += listOf("-bitrate_mode", "cq", "-global_quality", rc.value.toString())
+                is RateControl.ConstantQuality -> {
+                    val range = device?.qualityRange
+                    when {
+                        options.hardware != null && device?.supportsCq != true ->
+                            issues += error("rc_hw_cq", "This device's ${codec.name} hardware encoder has no constant-quality mode, choose a bitrate.")
+                        rc.value <= 0 || (range != null && rc.value !in range) ->
+                            issues += error("cq_range", "Quality must be between ${range?.first?.coerceAtLeast(1) ?: 1} and ${range?.last ?: "the encoder maximum"} for this device.")
+                        else -> args += listOf("-bitrate_mode", "cq", "-global_quality", rc.value.toString())
+                    }
+                }
             }
         } else {
             val crf = (rc as? RateControl.Crf)?.value
@@ -201,6 +222,15 @@ object FfmpegCommandBuilder {
             source.colorSpace?.let { args += listOf("-colorspace", it) }
         }
         return args
+    }
+
+    /** Hardware encoders treat the bitrate as a target, so it is only checked against what the device accepts. */
+    private fun hardwareVbr(kbps: Int, device: HardwareEncoder?, issues: MutableList<Issue>): List<String> {
+        val range = device?.bitrateRangeKbps
+        if (range != null && kbps !in range) {
+            issues += Issue(Severity.WARNING, "hw_bitrate_range", "The ${range.first}-${range.last} kbit/s range is what this device's encoder accepts; $kbps kbit/s may be clamped.")
+        }
+        return listOf("-bitrate_mode", "vbr", "-b:v", "${kbps}k")
     }
 
     private fun videoFilters(params: FfmpegParams, source: SourceInfo, plan: Plan): List<String> {
