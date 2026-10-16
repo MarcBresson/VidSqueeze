@@ -57,7 +57,7 @@ object Licenses {
     )
 
     val android: List<LicenseLink> = listOf(
-        LicenseLink("AndroidX, Jetpack Compose, Room, WorkManager, DataStore, Navigation", "Apache License 2.0", "https://www.apache.org/licenses/LICENSE-2.0"),
+        LicenseLink("AndroidX, Jetpack Compose, Room, WorkManager, DataStore, Navigation, Media3", "Apache License 2.0", "https://www.apache.org/licenses/LICENSE-2.0"),
         LicenseLink("Kotlin and kotlinx libraries", "Apache License 2.0", "https://www.apache.org/licenses/LICENSE-2.0"),
         LicenseLink("Dagger and Hilt", "Apache License 2.0", "https://www.apache.org/licenses/LICENSE-2.0"),
     )

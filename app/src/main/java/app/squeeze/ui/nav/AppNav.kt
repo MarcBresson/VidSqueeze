@@ -25,6 +25,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import app.squeeze.feature.auto.AutoScreen
+import app.squeeze.feature.compare.CompareScreen
 import app.squeeze.feature.history.HistoryScreen
 import app.squeeze.feature.presets.PresetEditorScreen
 import app.squeeze.feature.presets.PresetsScreen
@@ -42,6 +43,7 @@ object Routes {
     const val HISTORY = "history"
     const val AUTO = "auto"
     const val PRESET_EDIT = "presets/{id}"
+    const val COMPARE = "compare/{itemId}"
     const val ONBOARDING = "onboarding"
     const val SETTINGS = "settings"
     const val PERMISSIONS = "permissions"
@@ -49,6 +51,7 @@ object Routes {
     const val LICENSES = "licenses"
     const val LICENSE_TEXT = "licenses/{name}"
     fun licenseText(name: String) = "licenses/${android.net.Uri.encode(name)}"
+    fun compare(itemId: Long) = "compare/$itemId"
     fun presetEdit(id: String) = "presets/${android.net.Uri.encode(id)}"
 }
 
@@ -117,7 +120,10 @@ private fun NavGraphBuilder.appGraph(nav: NavHostController) {
         LicenseTextScreen(rawName = requireNotNull(entry.arguments?.getString("name")), onBack = { nav.popBackStack() })
     }
     composable(Routes.AUTO) { AutoScreen() }
-    composable(Routes.HISTORY) { HistoryScreen() }
+    composable(Routes.HISTORY) { HistoryScreen(onCompare = { nav.navigate(Routes.compare(it)) }) }
+    composable(Routes.COMPARE, arguments = listOf(navArgument("itemId") { type = NavType.LongType })) {
+        CompareScreen(onBack = { nav.popBackStack() })
+    }
     composable(Routes.PRESETS) {
         PresetsScreen(onEdit = { nav.navigate(Routes.presetEdit(it)) })
     }

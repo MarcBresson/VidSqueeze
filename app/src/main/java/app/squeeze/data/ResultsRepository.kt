@@ -25,6 +25,8 @@ class ResultsRepository @Inject constructor(
 
     suspend fun batch(batchId: Long): BatchEntity? = batches.get(batchId)
 
+    suspend fun item(itemId: Long): BatchItemEntity? = items.get(itemId)
+
     suspend fun items(batchId: Long): List<BatchItemEntity> = items.forBatch(batchId)
 
     /** Results of [batchId] that still wait for a decision. */

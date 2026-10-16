@@ -21,9 +21,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Compare
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SecondaryTabRow
@@ -72,7 +75,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HistoryScreen(vm: HistoryViewModel = hiltViewModel()) {
+fun HistoryScreen(onCompare: (Long) -> Unit = {}, vm: HistoryViewModel = hiltViewModel()) {
     val pagerState = rememberPagerState { 2 }
     val scope = rememberCoroutineScope()
     Scaffold(
@@ -97,14 +100,14 @@ fun HistoryScreen(vm: HistoryViewModel = hiltViewModel()) {
                 )
             }
             HorizontalPager(pagerState, Modifier.fillMaxSize()) { page ->
-                if (page == 0) HistoryList(vm) else StatsPane(vm)
+                if (page == 0) HistoryList(vm, onCompare) else StatsPane(vm)
             }
         }
     }
 }
 
 @Composable
-private fun HistoryList(vm: HistoryViewModel) {
+private fun HistoryList(vm: HistoryViewModel, onCompare: (Long) -> Unit) {
     val history by vm.history.collectAsStateWithLifecycle()
     val jobs by vm.jobs.collectAsStateWithLifecycle()
     var logsOf by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -118,21 +121,21 @@ private fun HistoryList(vm: HistoryViewModel) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         activeJobs(jobs, vm.jobActions)
-        items(entries, key = { it.batch.id }) { entry -> HistoryCard(entry, vm::hasLog) { logsOf = it } }
+        items(entries, key = { it.batch.id }) { entry -> HistoryCard(entry, vm::hasLog, onCompare) { logsOf = it } }
     }
     logsOf?.let { LogSheet(it, vm, onDismiss = { logsOf = null }) }
 }
 
 @Composable
-private fun HistoryCard(entry: HistoryEntry, hasLog: (Long) -> Boolean, onShowLogs: (Long) -> Unit) {
+private fun HistoryCard(entry: HistoryEntry, hasLog: (Long) -> Boolean, onCompare: (Long) -> Unit, onShowLogs: (Long) -> Unit) {
     val single = entry.single
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (single != null) {
-                ItemBlock(single, entry.batch.presetName, hasLog, onShowLogs)
+                ItemBlock(single, entry.batch.presetName, hasLog, onCompare, onShowLogs)
             } else {
                 BatchHeader(entry)
-                entry.items.forEach { ItemBlock(it, presetName = null, hasLog, onShowLogs) }
+                entry.items.forEach { ItemBlock(it, presetName = null, hasLog, onCompare, onShowLogs) }
             }
         }
     }
@@ -171,7 +174,7 @@ private fun BatchHeader(entry: HistoryEntry) {
  * Tap the row for the preset, finish time, outcome, error and the logs.
  */
 @Composable
-private fun ItemBlock(item: BatchItemEntity, presetName: String?, hasLog: (Long) -> Boolean, onShowLogs: (Long) -> Unit) {
+private fun ItemBlock(item: BatchItemEntity, presetName: String?, hasLog: (Long) -> Boolean, onCompare: (Long) -> Unit, onShowLogs: (Long) -> Unit) {
     val context = LocalContext.current
     var open by rememberSaveable(item.id) { mutableStateOf(false) }
     val result = remember(item.id, item.status, item.finalUri, item.stagedPath) { resultVideo(context, item) }
@@ -186,6 +189,11 @@ private fun ItemBlock(item: BatchItemEntity, presetName: String?, hasLog: (Long)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(item.displayName, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
                 OutcomePill(item)
+                if (canCompare(item)) {
+                    IconButton(onClick = { onCompare(item.id) }, Modifier.padding(start = 2.dp)) {
+                        Icon(Icons.Default.Compare, contentDescription = stringResource(R.string.compare_open))
+                    }
+                }
                 result?.let { PlayButton(it, Modifier.padding(start = 2.dp)) }
             }
             val compressedAt = item.finishedAt
@@ -242,6 +250,11 @@ private fun resultVideo(context: Context, item: BatchItemEntity): VideoRef? {
     val staged = item.stagedPath?.let(::File)?.takeIf { it.isFile } ?: return null
     return VideoRef.staged(context, staged)
 }
+
+/** A saved copy of a library video can be compared with its original, and replace it. */
+private fun canCompare(item: BatchItemEntity): Boolean =
+    item.status == ItemStatus.DONE && item.finalizeState == FinalizeState.SAVED && item.finalUri != null &&
+        item.mediaStoreId != null && !item.isImported
 
 /** What to draw when there is no result: the original, as far as it can still be read. */
 private fun sourceVideo(item: BatchItemEntity): VideoRef {

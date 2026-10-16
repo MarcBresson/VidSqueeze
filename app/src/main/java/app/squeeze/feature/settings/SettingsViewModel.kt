@@ -27,6 +27,7 @@ data class SettingsUi(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColor: Boolean = true,
     val retentionDays: Int = 14,
+    val replaceKeepsOriginalName: Boolean = true,
     val defaultPresetId: String = "",
     val presets: List<Preset> = emptyList(),
     /** Bytes of compressed results (and leftovers) in the app's staging folder; null while measuring. */
@@ -46,7 +47,7 @@ class SettingsViewModel @Inject constructor(
 
     val ui: StateFlow<SettingsUi> = combine(
         settings.themeMode, settings.dynamicColor, settings.stagedRetentionDays,
-        settings.defaultPresetId, presets.observeAll(), staging,
+        settings.defaultPresetId, presets.observeAll(), staging, settings.replaceKeepsOriginalName,
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         SettingsUi(
@@ -56,6 +57,7 @@ class SettingsViewModel @Inject constructor(
             defaultPresetId = values[3] as String,
             presets = values[4] as List<Preset>,
             stagingBytes = values[5] as Long?,
+            replaceKeepsOriginalName = values[6] as Boolean,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUi())
 
@@ -68,6 +70,8 @@ class SettingsViewModel @Inject constructor(
     fun setDynamicColor(on: Boolean) = viewModelScope.launch { settings.setDynamicColor(on) }
 
     fun setRetentionDays(days: Int) = viewModelScope.launch { settings.setStagedRetentionDays(days) }
+
+    fun setReplaceKeepsOriginalName(on: Boolean) = viewModelScope.launch { settings.setReplaceKeepsOriginalName(on) }
 
     fun setDefaultPreset(id: String) = viewModelScope.launch { settings.setDefaultPreset(id) }
 

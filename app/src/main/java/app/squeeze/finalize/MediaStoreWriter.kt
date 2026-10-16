@@ -155,6 +155,40 @@ class MediaStoreWriter @Inject constructor(@ApplicationContext private val conte
         }
     }
 
+    /** True when [uri] still points at a row in MediaStore. */
+    fun exists(uri: Uri): Boolean = try {
+        resolver.query(uri, arrayOf(MediaStore.Video.Media._ID), null, null, null)?.use { it.count > 0 } ?: false
+    } catch (e: Exception) {
+        false
+    }
+
+    fun displayName(uri: Uri): String? =
+        resolver.query(uri, arrayOf(MediaStore.Video.Media.DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getString(0) else null
+        }
+
+    /** Size in bytes of the file behind [uri], or -1 when it cannot be read. */
+    fun length(uri: Uri): Long = try {
+        resolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+    } catch (e: Exception) {
+        -1L
+    }
+
+    /**
+     * Renames the video behind [uri] to [displayName] (made unique within its folder) and returns the
+     * name it got. Only meant for files we created ourselves, which need no user consent.
+     */
+    fun rename(uri: Uri, displayName: String): String {
+        val (current, path) = resolver.query(
+            uri, arrayOf(MediaStore.Video.Media.DISPLAY_NAME, MediaStore.Video.Media.RELATIVE_PATH), null, null, null,
+        )?.use { c -> if (c.moveToFirst()) c.getString(0) to c.getString(1) else null } ?: throw IOException("$uri is gone")
+        if (current == displayName) return current
+        val name = NameTemplate.uniqueName(displayName) { it != current && exists(it, path) }
+        val values = ContentValues().apply { put(MediaStore.Video.Media.DISPLAY_NAME, name) }
+        if (resolver.update(uri, values, null, null) == 0) throw IOException("Could not rename $uri")
+        return name
+    }
+
     private fun normalisePath(path: String) = if (path.endsWith("/")) path else "$path/"
 
     companion object {

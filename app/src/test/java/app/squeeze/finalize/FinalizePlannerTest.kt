@@ -105,4 +105,15 @@ class FinalizePlannerTest {
         assertTrue(r.hasLeftovers)
         assertFalse(FinalizeReport(replaced = 1).hasLeftovers)
     }
+
+    @Test
+    fun replacementKeepsTheOriginalNameWithTheCopysExtension() {
+        assertEquals("trip.mp4", FinalizePlanner.replacementName("trip.mp4", "trip - compressed.mp4", keepOriginalName = true))
+        assertEquals("trip.mkv", FinalizePlanner.replacementName("trip.mp4", "trip - compressed.mkv", keepOriginalName = true))
+    }
+
+    @Test
+    fun replacementKeepsTheCopysNameWhenAsked() {
+        assertEquals("trip - compressed.mp4", FinalizePlanner.replacementName("trip.mov", "trip - compressed.mp4", keepOriginalName = false))
+    }
 }

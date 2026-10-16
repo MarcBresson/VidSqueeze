@@ -51,6 +51,13 @@ object FinalizePlanner {
     fun swappedName(originalName: String, outputExtension: String): String =
         originalName.substringBeforeLast('.', originalName) + "." + outputExtension.trimStart('.')
 
+    /**
+     * The name a saved copy gets once it replaces its original: the original's name with the copy's
+     * extension when [keepOriginalName], else the copy's own name.
+     */
+    fun replacementName(originalName: String, copyName: String, keepOriginalName: Boolean): String =
+        if (keepOriginalName) swappedName(originalName, copyName.substringAfterLast('.', "")) else copyName
+
     fun resolutionLabel(maxShortSide: Int?): String = if (maxShortSide == null) "original" else "${maxShortSide}p"
 
     /** The name a saved copy gets, from the preset's template. */
@@ -106,4 +113,18 @@ data class FinalizeReport(
     val handled get() = replaced + savedAsCopy
     val savedBytes get() = (originalBytes - outputBytes).coerceAtLeast(0)
     val hasLeftovers get() = needsConsent > 0 || failures.isNotEmpty()
+}
+
+/** What [Finalizer.validateReplacement] did for one saved copy. */
+sealed interface ReplaceAfterSaveResult {
+    /** The original is gone and the copy now lives under [name]. */
+    data class Done(val name: String) : ReplaceAfterSaveResult
+
+    /** The user has to approve deleting [original] first; nothing was changed. */
+    data class NeedsDeleteConsent(val original: android.net.Uri) : ReplaceAfterSaveResult
+
+    /** Nothing to replace: the item was not saved as a copy of a library video, or was already handled. */
+    data object Unavailable : ReplaceAfterSaveResult
+
+    data class Failed(val message: String) : ReplaceAfterSaveResult
 }

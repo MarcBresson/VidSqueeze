@@ -153,6 +153,9 @@ private fun DefaultsSection(ui: SettingsUi, vm: SettingsViewModel) {
                 )
             }
         }
+
+        SwitchRow(stringResource(R.string.settings_replace_name), ui.replaceKeepsOriginalName, vm::setReplaceKeepsOriginalName)
+        Text(stringResource(R.string.settings_replace_name_hint), style = MaterialTheme.typography.bodySmall)
     }
 }
 

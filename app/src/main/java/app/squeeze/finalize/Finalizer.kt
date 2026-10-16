@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.core.content.FileProvider
 import app.squeeze.data.BatchItemEntity
 import app.squeeze.data.FinalizeState
+import app.squeeze.data.ItemStatus
 import app.squeeze.data.ResultsRepository
 import app.squeeze.engine.FfmpegKitEngine
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -118,6 +119,43 @@ class Finalizer @Inject constructor(
         val next = report.replacedWith(item)
         return if (store.deleteQuietly(originalUri)) next else next.copy(originalsToDelete = next.originalsToDelete + originalUri.toString())
     }
+
+    /**
+     * Makes a saved copy take the place of its original: deletes the original, renames the copy
+     * (see [FinalizePlanner.replacementName]) and records the item as replaced.
+     *
+     * Safe to call again: when the user's approval to delete is needed this returns
+     * [ReplaceAfterSaveResult.NeedsDeleteConsent] without having changed anything, and a run that
+     * got as far as deleting the original just carries on with the rename.
+     */
+    suspend fun validateReplacement(itemId: Long, keepOriginalName: Boolean): ReplaceAfterSaveResult = withContext(Dispatchers.IO) {
+        val item = results.item(itemId)
+        val copy = item?.finalUri?.let(Uri::parse)
+        when {
+            item == null || item.status != ItemStatus.DONE || item.finalizeState != FinalizeState.SAVED || copy == null ->
+                ReplaceAfterSaveResult.Unavailable
+            item.isImported || item.mediaStoreId == null -> ReplaceAfterSaveResult.Unavailable
+            store.length(copy) <= 0 -> ReplaceAfterSaveResult.Failed("The saved copy is gone")
+            else -> try {
+                val original = store.itemUri(item.mediaStoreId)
+                if (store.exists(original) && !store.deleteQuietly(original)) {
+                    ReplaceAfterSaveResult.NeedsDeleteConsent(original)
+                } else {
+                    val copyName = resolverName(copy)
+                    val name = store.rename(copy, FinalizePlanner.replacementName(item.displayName, copyName, keepOriginalName))
+                    results.markFinalized(item, FinalizeState.REPLACED, copy.toString())
+                    ReplaceAfterSaveResult.Done(name)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not replace ${item.displayName} with its copy", e)
+                ReplaceAfterSaveResult.Failed(e.message ?: e.javaClass.simpleName)
+            }
+        }
+    }
+
+    private fun resolverName(uri: Uri): String = store.displayName(uri) ?: throw IllegalStateException("The saved copy is gone")
 
     /** The staged file, after checking with ffprobe that it is a faithful copy of the source. */
     private suspend fun verifiedStaged(item: BatchItemEntity): File {

@@ -46,6 +46,7 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
     private val themeKey = stringPreferencesKey("theme_mode")
     private val dynamicColorKey = booleanPreferencesKey("dynamic_color")
     private val retentionKey = intPreferencesKey("staged_retention_days")
+    private val replaceKeepsNameKey = booleanPreferencesKey("replace_keeps_original_name")
     private val onboardingKey = booleanPreferencesKey("onboarding_done")
     private val autoPromoDismissedKey = booleanPreferencesKey("auto_promo_dismissed")
 
@@ -61,6 +62,12 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
 
     /** Days an unclaimed result stays in the app, see [Retention]. */
     val stagedRetentionDays: Flow<Int> = context.dataStore.data.map { Retention.normalize(it[retentionKey]) }
+
+    /**
+     * When the user validates a saved copy as the replacement of its original: true renames the copy to
+     * the original's name, false leaves it under the name the preset gave it.
+     */
+    val replaceKeepsOriginalName: Flow<Boolean> = context.dataStore.data.map { it[replaceKeepsNameKey] ?: true }
 
     /** False until the first-run permissions screen was finished or skipped. */
     val onboardingDone: Flow<Boolean> = context.dataStore.data.map { it[onboardingKey] ?: false }
@@ -78,6 +85,10 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
 
     suspend fun setStagedRetentionDays(days: Int) {
         context.dataStore.edit { it[retentionKey] = Retention.normalize(days) }
+    }
+
+    suspend fun setReplaceKeepsOriginalName(on: Boolean) {
+        context.dataStore.edit { it[replaceKeepsNameKey] = on }
     }
 
     suspend fun setOnboardingDone() {

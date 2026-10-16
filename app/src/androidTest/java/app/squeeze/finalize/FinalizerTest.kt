@@ -152,6 +152,76 @@ class FinalizerTest {
         assertEquals(BatchStatus.DONE, db.batchDao().get(item.batchId)!!.status)
     }
 
+    /** Saves a compressed copy of a freshly inserted original and returns both URIs plus the item. */
+    private fun savedCopy(): Triple<Uri, Uri, BatchItemEntity> = runBlocking {
+        val big = clip("big.mp4", 2, "1280x720", 18)
+        val small = File(dir, "big - compressed.mp4").also { clip("small.mp4", 2, "640x360", 35).copyTo(it) }
+        val original = insertOriginal(big, "big.mp4", "video/mp4", dateTaken)
+        val item = awaiting(small, original, "big.mp4", big.length())
+        finalizer.saveCopies(item.batchId)
+        val saved = db.batchItemDao().get(item.id)!!
+        val copy = Uri.parse(saved.finalUri)
+        inserted += copy
+        Triple(original, copy, saved)
+    }
+
+    @Test
+    fun validatingTheReplacementDeletesTheOriginalAndGivesTheCopyItsName() = runBlocking {
+        val (original, copy, item) = savedCopy()
+
+        val result = finalizer.validateReplacement(item.id, keepOriginalName = true)
+
+        assertEquals(ReplaceAfterSaveResult.Done("big.mp4"), result)
+        assertFalse(exists(original))
+        assertTrue(exists(copy))
+        assertEquals("big.mp4", column(copy, MediaStore.Video.Media.DISPLAY_NAME))
+        assertEquals("Movies/SqueezeTest/", column(copy, MediaStore.Video.Media.RELATIVE_PATH))
+        val after = db.batchItemDao().get(item.id)!!
+        assertEquals(FinalizeState.REPLACED, after.finalizeState)
+        assertEquals(copy.toString(), after.finalUri)
+    }
+
+    @Test
+    fun validatingTheReplacementCanKeepTheCopysOwnName() = runBlocking {
+        val (original, copy, item) = savedCopy()
+
+        val result = finalizer.validateReplacement(item.id, keepOriginalName = false)
+
+        assertEquals(ReplaceAfterSaveResult.Done("big - compressed.mp4"), result)
+        assertFalse(exists(original))
+        assertEquals("big - compressed.mp4", column(copy, MediaStore.Video.Media.DISPLAY_NAME))
+    }
+
+    @Test
+    fun validatingAgainAfterTheOriginalIsGoneStillRenamesTheCopy() = runBlocking {
+        val (original, copy, item) = savedCopy()
+        resolver.delete(original, null, null)
+
+        assertEquals(ReplaceAfterSaveResult.Done("big.mp4"), finalizer.validateReplacement(item.id, keepOriginalName = true))
+        assertEquals("big.mp4", column(copy, MediaStore.Video.Media.DISPLAY_NAME))
+    }
+
+    @Test
+    fun anItemThatWasNotSavedAsACopyHasNothingToValidate() = runBlocking {
+        val big = clip("big.mp4", 2, "1280x720", 18)
+        val staged = File(dir, "big - compressed.mp4").also { clip("small.mp4", 2, "640x360", 35).copyTo(it) }
+        val original = insertOriginal(big, "big.mp4", "video/mp4", dateTaken)
+        val item = awaiting(staged, original, "big.mp4", big.length())
+
+        assertEquals(ReplaceAfterSaveResult.Unavailable, finalizer.validateReplacement(item.id, keepOriginalName = true))
+        assertTrue(exists(original))
+    }
+
+    @Test
+    fun aMissingCopyNeverDeletesTheOriginal() = runBlocking {
+        val (original, copy, item) = savedCopy()
+        resolver.delete(copy, null, null)
+
+        assertTrue(finalizer.validateReplacement(item.id, keepOriginalName = true) is ReplaceAfterSaveResult.Failed)
+        assertTrue(exists(original))
+        assertEquals(FinalizeState.SAVED, db.batchItemDao().get(item.id)!!.finalizeState)
+    }
+
     @Test
     fun savingTwiceNeverOverwritesAnExistingCopy() = runBlocking {
         val big = clip("big.mp4", 2, "1280x720", 18)
