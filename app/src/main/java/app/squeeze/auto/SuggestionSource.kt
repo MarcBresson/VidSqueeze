@@ -10,7 +10,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** What the Queue screen proposes: the heaviest videos Squeeze has not dealt with yet. */
+/** What the Home screen proposes: the heaviest videos Squeeze has not dealt with yet. */
 data class Suggestions(val videos: List<VideoInfo>, val uris: List<Uri>) {
     val totalBytes: Long get() = videos.sumOf { it.sizeBytes }
 }
@@ -25,9 +25,9 @@ class SuggestionSource @Inject constructor(
     fun hasAccess() = context.checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
 
     /** Null while the app may not read the library. */
-    suspend fun heavyVideos(): Suggestions? {
+    suspend fun heavyVideos(limit: Int = LIMIT): Suggestions? {
         if (!hasAccess()) return null
-        val videos = HeavyVideoSelector.select(scanner.scan(), queue.skipIds(), limit = LIMIT)
+        val videos = HeavyVideoSelector.select(scanner.scan(), queue.skipIds(), limit = limit)
         return Suggestions(videos, videos.map { store.itemUri(it.id) })
     }
 

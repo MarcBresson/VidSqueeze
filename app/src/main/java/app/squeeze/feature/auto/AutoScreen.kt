@@ -23,7 +23,6 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
@@ -31,8 +30,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -77,7 +74,7 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AutoScreen(onBack: () -> Unit, vm: AutoViewModel = hiltViewModel()) {
+fun AutoScreen(vm: AutoViewModel = hiltViewModel()) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val config = ui.config
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refreshAccess() }
@@ -92,11 +89,6 @@ fun AutoScreen(onBack: () -> Unit, vm: AutoViewModel = hiltViewModel()) {
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.auto_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.presets_back))
-                    }
-                },
             )
         },
     ) { padding ->

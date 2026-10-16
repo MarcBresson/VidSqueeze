@@ -15,7 +15,8 @@ class StatsTest {
         output: Long? = 400,
         state: FinalizeState = FinalizeState.SAVED,
         daysAgo: Long = 1,
-    ) = StatRow(id, preset, original, output, state, now - daysAgo * day)
+        tookMs: Long? = null,
+    ) = StatRow(id, preset, original, output, state, now - daysAgo * day, tookMs?.let { now - daysAgo * day - it })
 
     @Test
     fun `totals add up and report saving and percent`() {
@@ -106,5 +107,11 @@ class StatsTest {
         assertEquals(listOf(2L, 3L), history.first().items.map { it.position })
         assertNull(history.first().single)
         assertEquals(1, history.last().single?.position?.toInt())
+    }
+
+    @Test
+    fun `time taken adds up and ignores rows without a start`() {
+        val rows = listOf(row(tookMs = 60_000), row(tookMs = 30_000), row(tookMs = null))
+        assertEquals(90_000, StatsCalculator.compute(rows, StatsPeriod.ALL, now).total.durationMs)
     }
 }

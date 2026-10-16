@@ -25,6 +25,7 @@ data class StatRow(
     @ColumnInfo(name = "outputSize") val outputSize: Long?,
     @ColumnInfo(name = "finalizeState") val finalizeState: FinalizeState,
     @ColumnInfo(name = "finishedAt") val finishedAt: Long?,
+    @ColumnInfo(name = "startedAt") val startedAt: Long? = null,
 )
 
 data class StatTotals(
@@ -33,6 +34,8 @@ data class StatTotals(
     val outputBytes: Long = 0,
     /** Part of the saving that really left the device: results that replaced their original. */
     val freedBytes: Long = 0,
+    /** Time spent compressing these videos, from the start of each to its end. */
+    val durationMs: Long = 0,
 ) {
     val savedBytes: Long get() = (originalBytes - outputBytes).coerceAtLeast(0)
     val savedPercent: Int get() = if (originalBytes <= 0) 0 else ((savedBytes * 100) / originalBytes).toInt()
@@ -45,8 +48,15 @@ data class StatTotals(
             originalBytes = originalBytes + row.originalSize,
             outputBytes = outputBytes + output,
             freedBytes = freedBytes + if (row.finalizeState == FinalizeState.REPLACED) saved else 0,
+            durationMs = durationMs + elapsed(row),
         )
     }
+}
+
+private fun elapsed(row: StatRow): Long {
+    val start = row.startedAt ?: return 0
+    val end = row.finishedAt ?: return 0
+    return (end - start).coerceAtLeast(0)
 }
 
 data class PresetStats(val presetId: String?, val presetName: String, val totals: StatTotals)

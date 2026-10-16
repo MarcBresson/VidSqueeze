@@ -47,6 +47,7 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
     private val dynamicColorKey = booleanPreferencesKey("dynamic_color")
     private val retentionKey = intPreferencesKey("staged_retention_days")
     private val onboardingKey = booleanPreferencesKey("onboarding_done")
+    private val autoPromoDismissedKey = booleanPreferencesKey("auto_promo_dismissed")
 
     /** The preset the share flow starts from when "last used" is unknown. */
     val defaultPresetId: Flow<String> = context.dataStore.data.map { it[defaultPresetKey] ?: BuiltInPresets.SHARE_ID }
@@ -64,6 +65,9 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
     /** False until the first-run permissions screen was finished or skipped. */
     val onboardingDone: Flow<Boolean> = context.dataStore.data.map { it[onboardingKey] ?: false }
 
+    /** True once the user closed the Home card that offers to turn on auto compression. */
+    val autoPromoDismissed: Flow<Boolean> = context.dataStore.data.map { it[autoPromoDismissedKey] ?: false }
+
     suspend fun setThemeMode(mode: ThemeMode) {
         context.dataStore.edit { it[themeKey] = mode.name }
     }
@@ -78,6 +82,10 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
 
     suspend fun setOnboardingDone() {
         context.dataStore.edit { it[onboardingKey] = true }
+    }
+
+    suspend fun setAutoPromoDismissed() {
+        context.dataStore.edit { it[autoPromoDismissedKey] = true }
     }
 
     suspend fun setDefaultPreset(id: String) {

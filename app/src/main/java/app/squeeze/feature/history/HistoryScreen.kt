@@ -18,12 +18,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
@@ -53,6 +50,7 @@ import app.squeeze.data.ItemStatus
 import app.squeeze.data.PresetStats
 import app.squeeze.data.StatTotals
 import app.squeeze.data.StatsPeriod
+import app.squeeze.feature.queue.activeJobs
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -60,18 +58,13 @@ import java.time.format.FormatStyle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HistoryScreen(onBack: () -> Unit, vm: HistoryViewModel = hiltViewModel()) {
+fun HistoryScreen(vm: HistoryViewModel = hiltViewModel()) {
     var tab by rememberSaveable { mutableStateOf(0) }
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.history_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.presets_back))
-                    }
-                },
             )
         },
     ) { padding ->
@@ -88,8 +81,9 @@ fun HistoryScreen(onBack: () -> Unit, vm: HistoryViewModel = hiltViewModel()) {
 @Composable
 private fun HistoryList(vm: HistoryViewModel) {
     val history by vm.history.collectAsStateWithLifecycle()
+    val jobs by vm.jobs.collectAsStateWithLifecycle()
     val entries = history ?: return
-    if (entries.isEmpty()) {
+    if (entries.isEmpty() && jobs.items.isEmpty() && jobs.ready.isEmpty()) {
         Text(stringResource(R.string.history_empty), modifier = Modifier.padding(16.dp))
         return
     }
@@ -97,6 +91,7 @@ private fun HistoryList(vm: HistoryViewModel) {
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        activeJobs(jobs, vm.jobActions)
         items(entries, key = { it.batch.id }) { entry -> HistoryCard(entry) }
     }
 }

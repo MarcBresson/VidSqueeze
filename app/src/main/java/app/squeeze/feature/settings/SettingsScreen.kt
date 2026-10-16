@@ -14,15 +14,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -51,9 +48,7 @@ import app.squeeze.work.NotificationHelper
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    onBack: () -> Unit,
     onOpenPermissions: () -> Unit,
-    onOpenAuto: () -> Unit,
     onOpenAbout: () -> Unit,
     vm: SettingsViewModel = hiltViewModel(),
 ) {
@@ -63,11 +58,6 @@ fun SettingsScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.settings_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.presets_back))
-                    }
-                },
             )
         },
     ) { padding ->
@@ -82,7 +72,6 @@ fun SettingsScreen(
             item {
                 SectionCard(stringResource(R.string.settings_more)) {
                     LinkRow(stringResource(R.string.perm_title), stringResource(R.string.settings_permissions_hint), onOpenPermissions)
-                    LinkRow(stringResource(R.string.auto_title), stringResource(R.string.settings_auto_hint), onOpenAuto)
                     LinkRow(stringResource(R.string.about_title), stringResource(R.string.settings_about_hint), onOpenAbout)
                 }
             }

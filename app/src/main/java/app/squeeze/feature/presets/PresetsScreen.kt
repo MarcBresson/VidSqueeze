@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,7 +42,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PresetsScreen(onBack: () -> Unit, onEdit: (String) -> Unit, vm: PresetsViewModel = hiltViewModel()) {
+fun PresetsScreen(onEdit: (String) -> Unit, vm: PresetsViewModel = hiltViewModel()) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -55,11 +54,6 @@ fun PresetsScreen(onBack: () -> Unit, onEdit: (String) -> Unit, vm: PresetsViewM
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.presets_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.presets_back))
-                    }
-                },
                 actions = {
                     TextButton(onClick = { importer.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }) {
                         Text(stringResource(R.string.presets_import))

@@ -98,7 +98,7 @@ interface BatchItemDao {
     /** Compressed videos finished since [since], with the preset their batch ran under. */
     @Query(
         "SELECT b.presetId AS presetId, b.presetName AS presetName, i.originalSize AS originalSize, " +
-            "i.outputSize AS outputSize, i.finalizeState AS finalizeState, i.finishedAt AS finishedAt " +
+            "i.outputSize AS outputSize, i.finalizeState AS finalizeState, i.finishedAt AS finishedAt, i.startedAt AS startedAt " +
             "FROM batch_item i JOIN batch b ON b.id = i.batchId " +
             "WHERE i.status = 'DONE' AND i.finalizeState != 'DISCARDED' AND i.finishedAt >= :since",
     )

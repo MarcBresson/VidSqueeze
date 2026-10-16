@@ -56,8 +56,6 @@
     <string name="ready_discard_title">Discard compressed videos?</string>
     <string name="ready_discard_text">The compressed files are deleted. Your originals are not touched.</string>
     <string name="ready_save_started">Saving copies…</string>
-    <string name="queue_empty">Nothing in the queue. Pick videos, or share them to Squeeze from your gallery.</string>
-    <string name="queue_pick">Add videos</string>
     <string name="queue_pause">Pause</string>
     <string name="queue_resume">Resume</string>
     <string name="queue_cancel_all">Cancel all</string>
@@ -264,11 +262,8 @@
     <string name="automation_log">Received commands</string>
     <string name="automation_clear_log">Clear</string>
     <string name="automation_log_empty">Nothing received yet.</string>
-    <string name="nav_more">More</string>
     <string name="suggest_title">Heavy videos</string>
     <string name="suggest_access">Allow access to your videos and Squeeze can point out the ones that take the most space.</string>
-    <string name="suggest_compress">Compress them</string>
-    <string name="suggest_dismiss">Not now</string>
 
     <string name="nav_settings">Settings</string>
 
@@ -323,7 +318,6 @@
     <string name="settings_storage_clear_body">Compressed videos you have not saved, replaced or shared yet are deleted. Your original videos are not touched.</string>
     <string name="settings_more">More</string>
     <string name="settings_permissions_hint">Videos, notifications, replacing without asking, battery</string>
-    <string name="settings_auto_hint">Schedule, rules and the automation API</string>
     <string name="settings_about_hint">Version, licences and privacy</string>
 
     <string name="about_title">About</string>
@@ -340,4 +334,43 @@
     <string name="licenses_ffmpeg_intro">Video processing uses FFmpegKit, which bundles FFmpeg and the libraries below. Tap one to read its licence.</string>
     <string name="licenses_android">App libraries</string>
     <string name="licenses_missing">This licence text is not part of this build.</string>
+
+    <!-- Home screen -->
+    <string name="nav_home">Home</string>
+    <string name="home_tagline">Free up space, keep your memories</string>
+    <string name="home_job_paused">Queue paused</string>
+    <plurals name="home_job_waiting">
+        <item quantity="one">%d more in the queue · tap for details</item>
+        <item quantity="other">%d more in the queue · tap for details</item>
+    </plurals>
+    <plurals name="home_results_ready">
+        <item quantity="one">%d result ready to review</item>
+        <item quantity="other">%d results ready to review</item>
+    </plurals>
+    <string name="home_promo_title">Autocompress: save storage automatically</string>
+    <string name="home_promo_subtitle">Squeeze old videos in the background while you charge.</string>
+    <plurals name="home_promo_videos">
+        <item quantity="one">%d video</item>
+        <item quantity="other">%d videos</item>
+    </plurals>
+    <string name="home_promo_none">No video qualifies yet. New ones are picked up as they age.</string>
+    <string name="home_promo_enable">Enable now</string>
+    <string name="home_promo_dismiss">Dismiss</string>
+    <string name="home_auto_on_title">Auto compression is on</string>
+    <string name="home_this_week">This week</string>
+    <string name="home_this_month">This month</string>
+    <string name="home_select_title">Select videos from phone Gallery</string>
+    <string name="home_select_description">Select videos to compress in batch</string>
+    <string name="home_heavy_title">Heaviest videos</string>
+    <string name="home_shrink">Shrink</string>
+    <string name="home_impact_title">Past squeeze and impact</string>
+    <string name="home_impact_saved">Total storage saved</string>
+    <string name="home_impact_week">%1$s saved this week</string>
+    <string name="home_impact_videos">Videos processed</string>
+    <string name="home_impact_average">Average reduction</string>
+    <string name="home_impact_time">Total time taken</string>
+    <string name="home_impact_empty">Nothing squeezed yet. Your savings will show up here.</string>
+    <string name="duration_hours_minutes">%1$d h %2$d min</string>
+    <string name="duration_minutes">%d min</string>
+    <string name="duration_seconds">%d s</string>
 </resources>
