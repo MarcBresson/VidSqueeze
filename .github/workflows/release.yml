@@ -52,7 +52,9 @@ jobs:
           SQUEEZE_KEYSTORE_PASSWORD: ${{ secrets.SQUEEZE_KEYSTORE_PASSWORD }}
           SQUEEZE_KEY_ALIAS: ${{ secrets.SQUEEZE_KEY_ALIAS }}
           SQUEEZE_KEY_PASSWORD: ${{ secrets.SQUEEZE_KEY_PASSWORD }}
-        run: ./gradlew assembleRelease bundleRelease
+        run: |
+          ./gradlew assembleRelease
+          ./gradlew bundleRelease -PnoAbiSplits
 
       - name: Verify the APKs are signed
         run: |

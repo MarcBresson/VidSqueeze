@@ -25,7 +25,7 @@ android {
         minSdk = 33
         targetSdk = 35
         versionCode = 1
-        versionName = "0.2.0"
+        versionName = "0.2.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -61,9 +61,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     // The ffmpeg libraries dominate the APK size, so ship one APK per ABI (plus a universal one).
+    // AGP can't build an app bundle with ABI splits enabled (the bundle splits by ABI itself), so
+    // bundle builds pass -PnoAbiSplits.
     splits {
         abi {
-            isEnable = true
+            isEnable = !providers.gradleProperty("noAbiSplits").isPresent
             reset()
             include("arm64-v8a", "x86_64")
             isUniversalApk = true
