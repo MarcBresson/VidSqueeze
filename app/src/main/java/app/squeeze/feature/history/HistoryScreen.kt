@@ -8,6 +8,7 @@ import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -31,8 +32,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
@@ -40,6 +43,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.squeeze.R
@@ -50,7 +54,13 @@ import app.squeeze.data.ItemStatus
 import app.squeeze.data.PresetStats
 import app.squeeze.data.StatTotals
 import app.squeeze.data.StatsPeriod
+import app.squeeze.feature.home.Reduction
 import app.squeeze.feature.queue.activeJobs
+import app.squeeze.ui.Pill
+import app.squeeze.ui.media.PlayButton
+import app.squeeze.ui.media.VideoRef
+import app.squeeze.ui.media.VideoThumbnail
+import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -82,6 +92,7 @@ fun HistoryScreen(vm: HistoryViewModel = hiltViewModel()) {
 private fun HistoryList(vm: HistoryViewModel) {
     val history by vm.history.collectAsStateWithLifecycle()
     val jobs by vm.jobs.collectAsStateWithLifecycle()
+    var logsOf by rememberSaveable { mutableStateOf<Long?>(null) }
     val entries = history ?: return
     if (entries.isEmpty() && jobs.items.isEmpty() && jobs.ready.isEmpty()) {
         Text(stringResource(R.string.history_empty), modifier = Modifier.padding(16.dp))
@@ -92,20 +103,21 @@ private fun HistoryList(vm: HistoryViewModel) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         activeJobs(jobs, vm.jobActions)
-        items(entries, key = { it.batch.id }) { entry -> HistoryCard(entry) }
+        items(entries, key = { it.batch.id }) { entry -> HistoryCard(entry, vm::hasLog) { logsOf = it } }
     }
+    logsOf?.let { LogSheet(it, vm, onDismiss = { logsOf = null }) }
 }
 
 @Composable
-private fun HistoryCard(entry: HistoryEntry) {
+private fun HistoryCard(entry: HistoryEntry, hasLog: (Long) -> Boolean, onShowLogs: (Long) -> Unit) {
     val single = entry.single
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (single != null) {
-                ItemBlock(single, entry.batch.presetName)
+                ItemBlock(single, entry.batch.presetName, hasLog, onShowLogs)
             } else {
                 BatchHeader(entry)
-                entry.items.forEach { ItemBlock(it, presetName = null) }
+                entry.items.forEach { ItemBlock(it, presetName = null, hasLog, onShowLogs) }
             }
         }
     }
@@ -139,51 +151,87 @@ private fun BatchHeader(entry: HistoryEntry) {
     }
 }
 
-/** One video: name, sizes and outcome; tap for preset, dates and the exact ffmpeg command. */
+/**
+ * One video on two lines: thumbnail, name, reduction pill and play button, then the sizes.
+ * Tap the row for the preset, finish time, outcome, error and the logs.
+ */
 @Composable
-private fun ItemBlock(item: BatchItemEntity, presetName: String?) {
+private fun ItemBlock(item: BatchItemEntity, presetName: String?, hasLog: (Long) -> Boolean, onShowLogs: (Long) -> Unit) {
     val context = LocalContext.current
     var open by rememberSaveable(item.id) { mutableStateOf(false) }
-    Column(
+    val result = remember(item.id, item.status, item.finalUri, item.stagedPath) { resultVideo(context, item) }
+    val thumbnail = remember(item.id, result) { result ?: sourceVideo(item) }
+    Row(
         Modifier.fillMaxWidth().clickable { open = !open },
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(item.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
-        Text(outcome(context, item), style = MaterialTheme.typography.bodyMedium)
-        val compressedAt = item.finishedAt
-        if (presetName != null) {
-            val date = compressedAt?.let { " · " + formatDateTime(it) }.orEmpty()
-            Text(presetName + date, style = MaterialTheme.typography.bodySmall)
-        } else if (compressedAt != null) {
-            Text(formatDateTime(compressedAt), style = MaterialTheme.typography.bodySmall)
-        }
-        if (open) {
-            item.error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
-            finalizeLabel(item)?.let { Text(stringResource(it), style = MaterialTheme.typography.bodySmall) }
-            val command = item.ffmpegCommand
-            if (command != null) {
-                Text(stringResource(R.string.history_command), style = MaterialTheme.typography.labelMedium)
-                SelectionContainer {
-                    Text(command, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+        VideoThumbnail(thumbnail, size = 48.dp)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(item.displayName, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
+                OutcomePill(item)
+                result?.let { PlayButton(it, Modifier.padding(start = 2.dp)) }
+            }
+            val compressedAt = item.finishedAt
+            // A lone video has no batch header, so its preset and date ride on the sizes line.
+            val detail = if (presetName != null) listOfNotNull(presetName, compressedAt?.let(::formatShortDateTime)).joinToString(" · ") else null
+            Text(
+                sizesText(context, item) + detail?.let { " · $it" }.orEmpty(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (open) {
+                if (presetName == null && compressedAt != null) {
+                    Text(stringResource(R.string.history_finished_at, formatDateTime(compressedAt)), style = MaterialTheme.typography.bodySmall)
                 }
-                TextButton(onClick = { copy(context, command) }) { Text(stringResource(R.string.history_copy_command)) }
+                item.error?.let { Text(it.lineSequence().first(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+                finalizeLabel(item)?.let { Text(stringResource(it), style = MaterialTheme.typography.bodySmall) }
+                if (hasLog(item.id)) {
+                    TextButton(onClick = { onShowLogs(item.id) }, contentPadding = PaddingValues(0.dp)) {
+                        Text(stringResource(R.string.history_show_logs))
+                    }
+                }
             }
         }
     }
 }
 
-private fun outcome(context: Context, item: BatchItemEntity): String {
+/** "−96%" for a finished item, "Failed" for a failure, nothing otherwise. */
+@Composable
+private fun OutcomePill(item: BatchItemEntity) {
+    when (item.status) {
+        ItemStatus.DONE -> Reduction.percent(item.originalSize, item.outputSize ?: item.originalSize)?.let { Pill("−$it%", bold = true) }
+        ItemStatus.FAILED -> Pill(
+            stringResource(R.string.history_pill_failed),
+            MaterialTheme.colorScheme.errorContainer,
+            MaterialTheme.colorScheme.onErrorContainer,
+        )
+        else -> Unit
+    }
+}
+
+private fun sizesText(context: Context, item: BatchItemEntity): String {
     val original = Formatter.formatShortFileSize(context, item.originalSize)
     return when (item.status) {
-        ItemStatus.DONE -> {
-            val output = item.outputSize ?: item.originalSize
-            val percent = if (item.originalSize <= 0) 0 else (((item.originalSize - output).coerceAtLeast(0) * 100) / item.originalSize).toInt()
-            context.getString(R.string.history_item_done, original, Formatter.formatShortFileSize(context, output), percent)
-        }
+        ItemStatus.DONE -> context.getString(R.string.history_item_sizes, original, Formatter.formatShortFileSize(context, item.outputSize ?: item.originalSize))
         ItemStatus.SKIPPED_NO_GAIN -> context.getString(R.string.history_item_no_gain, original)
-        ItemStatus.FAILED -> context.getString(R.string.history_item_failed, original)
         else -> original
     }
+}
+
+/** The compressed file, when there still is one to play: the saved or replaced video, or the staged result. */
+private fun resultVideo(context: Context, item: BatchItemEntity): VideoRef? {
+    if (item.status != ItemStatus.DONE) return null
+    item.finalUri?.let { return VideoRef(it.toUri()) }
+    val staged = item.stagedPath?.let(::File)?.takeIf { it.isFile } ?: return null
+    return VideoRef.staged(context, staged)
+}
+
+/** What to draw when there is no result: the original, as far as it can still be read. */
+private fun sourceVideo(item: BatchItemEntity): VideoRef {
+    val uri = item.sourceUri.toUri()
+    return if (uri.scheme == "file") VideoRef(uri, uri.path?.let(::File)) else VideoRef(uri)
 }
 
 private fun finalizeLabel(item: BatchItemEntity): Int? = if (item.status != ItemStatus.DONE) null else when (item.finalizeState) {
@@ -194,16 +242,16 @@ private fun finalizeLabel(item: BatchItemEntity): Int? = if (item.status != Item
     FinalizeState.DISCARDED -> R.string.history_state_discarded
 }
 
-private fun copy(context: Context, command: String) {
-    val clipboard = context.getSystemService(ClipboardManager::class.java)
-    clipboard.setPrimaryClip(ClipData.newPlainText("ffmpeg", command))
-    Toast.makeText(context, R.string.history_command_copied, Toast.LENGTH_SHORT).show()
-}
-
 private val dateTime: DateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
 
 private fun formatDateTime(epochMs: Long): String =
     dateTime.format(Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()))
+
+private val shortDateTime: DateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT, FormatStyle.SHORT)
+
+/** Compact form for the line under a lone video's name. */
+private fun formatShortDateTime(epochMs: Long): String =
+    shortDateTime.format(Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()))
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

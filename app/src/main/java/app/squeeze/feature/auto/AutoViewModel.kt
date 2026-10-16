@@ -8,10 +8,8 @@ import androidx.lifecycle.viewModelScope
 import app.squeeze.auto.AutoConfig
 import app.squeeze.auto.AutoRunResult
 import app.squeeze.auto.AutoRunner
-import app.squeeze.auto.AutomationLogEntry
 import app.squeeze.auto.RunOptions
 import app.squeeze.auto.Trigger
-import app.squeeze.automation.AutomationService
 import app.squeeze.data.AutoSettingsRepository
 import app.squeeze.data.PresetRepository
 import app.squeeze.engine.Preset
@@ -35,10 +33,6 @@ data class AutoUi(
     val presets: List<Preset> = emptyList(),
     val canManageMedia: Boolean = false,
     val hasMediaAccess: Boolean = false,
-    val automationEnabled: Boolean = false,
-    val automationToken: String? = null,
-    val automationEvents: Boolean = false,
-    val log: List<AutomationLogEntry> = emptyList(),
     val run: RunUi = RunUi(),
 )
 
@@ -54,20 +48,15 @@ class AutoViewModel @Inject constructor(
     private val access = MutableStateFlow(readAccess())
 
     val ui: StateFlow<AutoUi> = combine(
-        settings.config, presets.observeAll(), settings.automationEnabled, settings.automationToken,
-        settings.automationEvents, settings.automationLog, run, access,
+        settings.config, presets.observeAll(), run, access,
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         AutoUi(
             config = values[0] as AutoConfig,
             presets = values[1] as List<Preset>,
             canManageMedia = store.canManageMedia(),
-            hasMediaAccess = values[7] as Boolean,
-            automationEnabled = values[2] as Boolean,
-            automationToken = values[3] as String?,
-            automationEvents = values[4] as Boolean,
-            log = values[5] as List<AutomationLogEntry>,
-            run = values[6] as RunUi,
+            hasMediaAccess = values[3] as Boolean,
+            run = values[2] as RunUi,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AutoUi())
 
@@ -101,21 +90,5 @@ class AutoViewModel @Inject constructor(
             val result = runner.run(RunOptions(Trigger.MANUAL, dryRun = dry))
             run.value = RunUi(busy = false, result = result, dryRun = dry)
         }
-    }
-
-    fun setAutomation(enabled: Boolean) {
-        viewModelScope.launch { settings.setAutomationEnabled(enabled, AutomationService::newToken) }
-    }
-
-    fun regenerateToken() {
-        viewModelScope.launch { settings.regenerateToken(AutomationService.newToken()) }
-    }
-
-    fun setEvents(enabled: Boolean) {
-        viewModelScope.launch { settings.setAutomationEvents(enabled) }
-    }
-
-    fun clearLog() {
-        viewModelScope.launch { settings.clearLog() }
     }
 }

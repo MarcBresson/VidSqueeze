@@ -35,6 +35,7 @@ class ItemProcessor @Inject constructor(
     @ApplicationContext private val context: Context,
     private val engine: FfmpegKitEngine,
     private val current: CurrentJob,
+    private val logs: LogStore = LogStore(context),
 ) {
     val stagingDir get() = File(context.filesDir, "staging")
 
@@ -73,8 +74,17 @@ class ItemProcessor @Inject constructor(
             }
             val shown = command.display()
 
-            when (val result = engine.run(command.args, source.durationMs, onProgress)) {
-                RunResult.Cancelled -> return ItemOutcome.Cancelled
+            val log = logs.open(item.id, shown)
+            val result = try {
+                engine.run(command.args, source.durationMs, onLog = log::append, onProgress = onProgress)
+            } finally {
+                log.close()
+            }
+            when (result) {
+                RunResult.Cancelled -> {
+                    logs.delete(item.id)
+                    return ItemOutcome.Cancelled
+                }
                 is RunResult.Failed ->
                     return ItemOutcome.Failed("ffmpeg failed (code ${result.returnCode})\n${result.logTail}", shown)
                 RunResult.Success -> Unit

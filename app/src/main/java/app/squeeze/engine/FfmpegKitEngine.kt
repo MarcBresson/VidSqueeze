@@ -57,6 +57,7 @@ class FfmpegKitEngine(private val context: Context) {
     suspend fun run(
         args: List<String>,
         durationMs: Long,
+        onLog: (String) -> Unit = {},
         onProgress: (EncodeProgress) -> Unit = {},
     ): RunResult = suspendCancellableCoroutine { cont ->
         val logTail = ArrayDeque<String>()
@@ -73,10 +74,12 @@ class FfmpegKitEngine(private val context: Context) {
                 )
             },
             { log ->
+                val line = log.message.trimEnd()
                 synchronized(logTail) {
-                    logTail.addLast(log.message.trimEnd())
+                    logTail.addLast(line)
                     if (logTail.size > LOG_TAIL_LINES) logTail.removeFirst()
                 }
+                onLog(line)
             },
             { stats ->
                 val processed = stats.time.toLong()

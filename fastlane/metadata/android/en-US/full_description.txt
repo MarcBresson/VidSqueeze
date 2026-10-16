@@ -16,7 +16,7 @@ Squeeze compresses your videos to share them more easily or to get your storage 
 <b>Auto compression</b>
 • Compress old videos overnight or while charging, with a different preset by video age
 • Dry run, battery and charger conditions, skipped folders
-• Optional automation API (token protected) for Tasker, MacroDroid and Samsung Routines
+• Launcher shortcuts (run, pause, resume) that Samsung Routines and similar apps can fire
 
 <b>Free software</b>
 Squeeze is licensed under the GNU GPL v3 and includes FFmpeg with x264 and x265.

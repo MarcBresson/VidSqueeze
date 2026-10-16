@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -43,6 +44,10 @@ import androidx.compose.ui.unit.dp
 import app.squeeze.R
 import app.squeeze.data.StatTotals
 import app.squeeze.feature.queue.QueueUi
+import app.squeeze.ui.Pill
+import app.squeeze.ui.media.PlayButton
+import app.squeeze.ui.media.VideoRef
+import app.squeeze.ui.media.VideoThumbnail
 
 @Composable
 private fun sizeText(bytes: Long): String = Formatter.formatShortFileSize(LocalContext.current, bytes)
@@ -63,14 +68,6 @@ private fun durationText(ms: Long): String {
 @Composable
 internal fun SectionTitle(titleRes: Int) {
     Text(stringResource(titleRes), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-}
-
-/** Small rounded label, used for counts and resolutions. */
-@Composable
-private fun Pill(text: String, container: Color = MaterialTheme.colorScheme.primaryContainer, content: Color = MaterialTheme.colorScheme.onPrimaryContainer) {
-    Surface(shape = CircleShape, color = container, contentColor = content) {
-        Text(text, Modifier.padding(horizontal = 10.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium)
-    }
 }
 
 @Composable
@@ -144,14 +141,11 @@ fun AutoPromoCard(promo: AutoPromo, onEnable: () -> Unit, onDismiss: () -> Unit)
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(stringResource(R.string.home_promo_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        stringResource(R.string.home_promo_subtitle),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                Text(
+                    stringResource(R.string.home_promo_subtitle),
+                    Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
                 Pill(pluralStringResource(R.plurals.home_promo_videos, promo.videos, promo.videos))
             }
             if (promo.videos > 0) {
@@ -198,7 +192,7 @@ fun SavingsBar(reclaimed: Float, modifier: Modifier = Modifier) {
 fun AutoStatsCard(week: StatTotals?, month: StatTotals?) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(stringResource(R.string.home_auto_on_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.home_auto_on_title), style = MaterialTheme.typography.bodyMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 PeriodStats(stringResource(R.string.home_this_week), week, Modifier.weight(1f))
                 PeriodStats(stringResource(R.string.home_this_month), month, Modifier.weight(1f))
@@ -240,14 +234,14 @@ fun SelectVideosCard(onClick: () -> Unit) {
 
 @Composable
 fun HeavyVideoCard(item: HeavyVideo, onShrink: () -> Unit) {
+    val video = VideoRef(item.uri)
     Card(Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ResolutionLabel.of(item.video.width, item.video.height)?.let {
-                        Pill(it, MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer)
-                    }
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            VideoThumbnail(video)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(item.video.name, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    PlayButton(video)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(sizeText(item.video.sizeBytes), style = MaterialTheme.typography.bodyMedium, maxLines = 1)
@@ -260,12 +254,16 @@ fun HeavyVideoCard(item: HeavyVideo, onShrink: () -> Unit) {
                         maxLines = 1,
                     )
                 }
-                item.reductionPercent?.let {
-                    Text("−$it%", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ResolutionLabel.of(item.video.width, item.video.height)?.let {
+                        Pill(it, MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer)
+                    }
+                    item.reductionPercent?.let { Pill("−$it%", bold = true) }
+                    Spacer(Modifier.weight(1f))
+                    Button(onClick = onShrink, contentPadding = PaddingValues(horizontal = 16.dp)) {
+                        Text(stringResource(R.string.home_shrink))
+                    }
                 }
-            }
-            Button(onClick = onShrink, contentPadding = PaddingValues(horizontal = 16.dp)) {
-                Text(stringResource(R.string.home_shrink))
             }
         }
     }
@@ -275,7 +273,6 @@ fun HeavyVideoCard(item: HeavyVideo, onShrink: () -> Unit) {
 fun ImpactCard(all: StatTotals?, week: StatTotals?) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(stringResource(R.string.home_impact_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             val total = all ?: StatTotals()
             if (total.videos == 0) {
                 Text(stringResource(R.string.home_impact_empty), style = MaterialTheme.typography.bodyMedium)
@@ -318,8 +315,7 @@ private fun ImpactFigure(value: String, label: String, modifier: Modifier = Modi
 fun AccessCard(onAllow: () -> Unit) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.suggest_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(stringResource(R.string.suggest_access), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.suggest_access), style = MaterialTheme.typography.bodyMedium)
             Button(onClick = onAllow) { Text(stringResource(R.string.auto_grant_access)) }
         }
     }

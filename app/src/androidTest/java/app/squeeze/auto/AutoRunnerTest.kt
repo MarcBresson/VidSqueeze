@@ -7,7 +7,6 @@ import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.work.WorkManager
-import app.squeeze.automation.AutomationEvents
 import app.squeeze.data.AutoSettingsRepository
 import app.squeeze.data.BatchSource
 import app.squeeze.data.ItemResult
@@ -65,7 +64,7 @@ class AutoRunnerTest {
         val settings = AutoSettingsRepository(context)
         val store = MediaStoreWriter(context)
         val results = ResultsRepository(db.batchDao(), db.batchItemDao())
-        val completion = BatchCompletion(results, Finalizer(context, results, store, engine), store, NotificationHelper(context), AutomationEvents(context, settings))
+        val completion = BatchCompletion(results, Finalizer(context, results, store, engine), store, NotificationHelper(context))
         val manager = QueueManager(
             queue, SourceImporter(context), WorkManager.getInstance(context), CurrentJob(engine), completion,
             CoroutineScope(SupervisorJob() + Dispatchers.Default),

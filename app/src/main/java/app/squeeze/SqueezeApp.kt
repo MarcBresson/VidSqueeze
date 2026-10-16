@@ -4,7 +4,7 @@ import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import app.squeeze.auto.AutoScheduler
-import app.squeeze.automation.AutomationShortcuts
+import app.squeeze.shortcuts.AppShortcuts
 import app.squeeze.data.AutoSettingsRepository
 import app.squeeze.data.Retention
 import app.squeeze.data.SettingsRepository
@@ -14,7 +14,6 @@ import app.squeeze.finalize.Finalizer
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -25,7 +24,7 @@ class SqueezeApp : Application(), Configuration.Provider {
     @Inject lateinit var workerFactory: HiltWorkerFactory
     @Inject lateinit var finalizer: Finalizer
     @Inject lateinit var autoScheduler: AutoScheduler
-    @Inject lateinit var shortcuts: AutomationShortcuts
+    @Inject lateinit var shortcuts: AppShortcuts
     @Inject lateinit var autoSettings: AutoSettingsRepository
     @Inject lateinit var settings: SettingsRepository
     @Inject lateinit var processor: ItemProcessor
@@ -49,9 +48,11 @@ class SqueezeApp : Application(), Configuration.Provider {
                 .collect { autoScheduler.apply(autoSettings.currentConfig()) }
         }
         scope.launch {
-            combine(autoSettings.automationEnabled, autoSettings.automationToken, ::Pair)
+            autoSettings.clearLegacyAutomation()
+            autoSettings.config
+                .map { it.enabled }
                 .distinctUntilChanged()
-                .collect { (enabled, token) -> shortcuts.publish(enabled, token) }
+                .collect { shortcuts.publish(it) }
         }
     }
 }

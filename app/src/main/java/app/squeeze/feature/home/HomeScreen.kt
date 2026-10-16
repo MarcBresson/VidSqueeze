@@ -80,14 +80,12 @@ fun HomeScreen(
                 item(key = "jobs") { JobProgressWidget(queue, onClick = onOpenHistory) }
             }
 
-            if (!libraryAccess) {
-                item(key = "access") {
-                    AccessCard(onAllow = { libraryPermission.launch(Manifest.permission.READ_MEDIA_VIDEO) })
-                }
-            } else if (autoEnabled == true) {
+            if (libraryAccess && autoEnabled == true) {
+                item(key = "auto-title") { SectionTitle(R.string.home_auto_title) }
                 item(key = "auto-stats") { AutoStatsCard(week = week, month = month) }
-            } else if (autoEnabled == false && promoDismissed == false) {
+            } else if (libraryAccess && autoEnabled == false && promoDismissed == false) {
                 promo?.let { offer ->
+                    item(key = "auto-title") { SectionTitle(R.string.home_auto_title) }
                     item(key = "auto-promo") {
                         AutoPromoCard(
                             promo = offer,
@@ -107,6 +105,7 @@ fun HomeScreen(
                 }
             }
 
+            item(key = "select-title") { SectionTitle(R.string.home_compress_title) }
             item(key = "select") {
                 SelectVideosCard(onClick = {
                     notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -114,7 +113,12 @@ fun HomeScreen(
                 })
             }
 
-            if (heavy.isNotEmpty()) {
+            if (!libraryAccess) {
+                item(key = "access-title") { SectionTitle(R.string.home_heavy_title) }
+                item(key = "access") {
+                    AccessCard(onAllow = { libraryPermission.launch(Manifest.permission.READ_MEDIA_VIDEO) })
+                }
+            } else if (heavy.isNotEmpty()) {
                 item(key = "heavy-title") { SectionTitle(R.string.home_heavy_title) }
                 items(heavy, key = { "heavy-${it.video.id}" }) { item ->
                     HeavyVideoCard(item, onShrink = {
@@ -124,6 +128,7 @@ fun HomeScreen(
                 }
             }
 
+            item(key = "impact-title") { SectionTitle(R.string.home_impact_title) }
             item(key = "impact") { ImpactCard(all = all, week = week) }
         }
         // Content scrolls under the transparent status bar; a scrim keeps the clock and icons readable.

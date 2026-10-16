@@ -74,7 +74,6 @@ class QueueRepository @Inject constructor(
 
     suspend fun item(id: Long): BatchItemEntity? = items.get(id)
 
-    suspend fun itemCount(batchId: Long): Int = items.forBatch(batchId).size
 
     suspend fun isAutoItem(itemId: Long): Boolean =
         items.get(itemId)?.let { batches.get(it.batchId)?.source == BatchSource.AUTO } == true

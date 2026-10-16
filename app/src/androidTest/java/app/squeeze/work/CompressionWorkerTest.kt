@@ -11,7 +11,6 @@ import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import androidx.work.testing.TestListenableWorkerBuilder
 import app.squeeze.auto.DeviceStateReader
-import app.squeeze.automation.AutomationEvents
 import app.squeeze.data.AutoSettingsRepository
 import app.squeeze.data.BatchSource
 import app.squeeze.data.RunLimits
@@ -87,10 +86,10 @@ class CompressionWorkerTest {
                 val results = ResultsRepository(db.batchDao(), db.batchItemDao())
                 val store = MediaStoreWriter(appContext)
                 val autoSettings = AutoSettingsRepository(appContext)
-                val completion = BatchCompletion(results, Finalizer(appContext, results, store, engine), store, notifications, AutomationEvents(appContext, autoSettings))
+                val completion = BatchCompletion(results, Finalizer(appContext, results, store, engine), store, notifications)
                 return CompressionWorker(
                     appContext, workerParameters, repository, processor, notifications, completion, current,
-                    autoSettings, DeviceStateReader(appContext), AutomationEvents(appContext, autoSettings),
+                    autoSettings, DeviceStateReader(appContext),
                 )
             }
         })
@@ -161,6 +160,9 @@ class CompressionWorkerTest {
             val auto = repository.enqueue(BatchSource.AUTO, preset, listOf(source(clip("night2.mp4"))))
             assertTrue(worker().doWork() is ListenableWorker.Result.Success)
             assertEquals(ItemStatus.DONE, items(auto).single().status)
+            val log = LogStore(context).read(items(auto).single().id)
+            assertEquals("the log starts with the command", items(auto).single().ffmpegCommand, log?.command)
+            assertTrue("ffmpeg's output is kept", log?.output?.isNotBlank() == true)
         } finally {
             settings.setRunLimits(null)
         }

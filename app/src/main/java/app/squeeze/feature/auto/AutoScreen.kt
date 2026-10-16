@@ -117,7 +117,6 @@ fun AutoScreen(vm: AutoViewModel = hiltViewModel()) {
             item { FiltersSection(config, vm) }
             item { OutputSection(config, ui.canManageMedia, vm) }
             item { RunSection(ui, vm) }
-            item { AutomationSection(ui, vm) }
             item { Box(Modifier.padding(bottom = 24.dp)) }
         }
     }

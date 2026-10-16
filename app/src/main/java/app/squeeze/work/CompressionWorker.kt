@@ -8,7 +8,6 @@ import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import app.squeeze.auto.DeviceStateReader
-import app.squeeze.automation.AutomationEvents
 import app.squeeze.data.AutoSettingsRepository
 import app.squeeze.data.BatchItemEntity
 import app.squeeze.data.BatchSource
@@ -43,7 +42,6 @@ class CompressionWorker @AssistedInject constructor(
     private val current: CurrentJob,
     private val autoSettings: AutoSettingsRepository,
     private val device: DeviceStateReader,
-    private val events: AutomationEvents,
 ) : CoroutineWorker(context, params) {
 
     override suspend fun getForegroundInfo(): ForegroundInfo =
@@ -74,7 +72,6 @@ class CompressionWorker @AssistedInject constructor(
                     continue
                 }
             }
-            if (batch != null && batch.startedAt == null) events.batchStarted(batch, repository.itemCount(batch.id))
             val result = batch?.decodePreset()?.let { preset ->
                 runItem(item, preset, index = finished + 1, total = finished + repository.activeCount(), savedBytes = savedBytes, unattended = unattended)
             } ?: ItemResult.Failed("The batch or its preset could not be read.", null).also {

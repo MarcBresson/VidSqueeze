@@ -9,8 +9,6 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import app.squeeze.auto.AutoConfig
 import app.squeeze.auto.AutoConfigJson
 import app.squeeze.auto.AutoGates
-import app.squeeze.auto.AutomationLogEntry
-import app.squeeze.auto.AutomationLogJson
 import app.squeeze.auto.DeviceState
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -27,7 +25,7 @@ data class RunLimits(val deadlineMs: Long?, val gates: AutoGates?) {
     }
 }
 
-/** DataStore-backed auto compression settings, the run in progress, and the automation API's secret and log. */
+/** DataStore-backed auto compression settings, and the run in progress. */
 @Singleton
 class AutoSettingsRepository @Inject constructor(@ApplicationContext private val context: Context) {
     private val configKey = stringPreferencesKey("auto_config")
@@ -35,10 +33,6 @@ class AutoSettingsRepository @Inject constructor(@ApplicationContext private val
     private val deadlineKey = longPreferencesKey("auto_run_deadline")
     private val gateChargingKey = booleanPreferencesKey("auto_run_require_charging")
     private val gateBatteryKey = intPreferencesKey("auto_run_min_battery")
-    private val automationEnabledKey = booleanPreferencesKey("automation_enabled")
-    private val automationTokenKey = stringPreferencesKey("automation_token")
-    private val automationEventsKey = booleanPreferencesKey("automation_events")
-    private val automationLogKey = stringPreferencesKey("automation_log")
 
     val config: Flow<AutoConfig> = context.dataStore.data.map { AutoConfigJson.decode(it[configKey]) }
 
@@ -71,34 +65,17 @@ class AutoSettingsRepository @Inject constructor(@ApplicationContext private val
         }
     }
 
-    // --- automation API ---
-
-    val automationEnabled: Flow<Boolean> = context.dataStore.data.map { it[automationEnabledKey] == true }
-    val automationToken: Flow<String?> = context.dataStore.data.map { it[automationTokenKey] }
-    val automationEvents: Flow<Boolean> = context.dataStore.data.map { it[automationEventsKey] == true }
-    val automationLog: Flow<List<AutomationLogEntry>> = context.dataStore.data.map { AutomationLogJson.decode(it[automationLogKey]) }
-
-    /** Turning automation on creates the secret if there is none yet. */
-    suspend fun setAutomationEnabled(enabled: Boolean, newToken: () -> String) {
+    /** Drops what the removed automation API left behind (its secret token, switches and log). */
+    suspend fun clearLegacyAutomation() {
         context.dataStore.edit {
-            it[automationEnabledKey] = enabled
-            if (enabled && it[automationTokenKey].isNullOrEmpty()) it[automationTokenKey] = newToken()
+            legacyAutomationKeys.forEach { key -> it.remove(key) }
         }
     }
 
-    suspend fun regenerateToken(newToken: String) {
-        context.dataStore.edit { it[automationTokenKey] = newToken }
-    }
-
-    suspend fun setAutomationEvents(enabled: Boolean) {
-        context.dataStore.edit { it[automationEventsKey] = enabled }
-    }
-
-    suspend fun appendLog(entry: AutomationLogEntry) {
-        context.dataStore.edit { it[automationLogKey] = AutomationLogJson.encode(AutomationLogJson.append(AutomationLogJson.decode(it[automationLogKey]), entry)) }
-    }
-
-    suspend fun clearLog() {
-        context.dataStore.edit { it.remove(automationLogKey) }
-    }
+    private val legacyAutomationKeys = listOf(
+        booleanPreferencesKey("automation_enabled"),
+        stringPreferencesKey("automation_token"),
+        booleanPreferencesKey("automation_events"),
+        stringPreferencesKey("automation_log"),
+    )
 }

@@ -1,7 +1,6 @@
 package app.squeeze.finalize
 
 import android.util.Log
-import app.squeeze.automation.AutomationEvents
 import app.squeeze.data.BatchStatus
 import app.squeeze.data.FinishedBatch
 import app.squeeze.data.ResultsRepository
@@ -22,10 +21,8 @@ class BatchCompletion @Inject constructor(
     private val finalizer: Finalizer,
     private val store: MediaStoreWriter,
     private val notifications: NotificationHelper,
-    private val events: AutomationEvents,
 ) {
     suspend fun onBatchFinished(finished: FinishedBatch) {
-        events.batchFinished(finished, results.batch(finished.batchId)?.source?.name)
         if (finished.status != BatchStatus.AWAITING_ACTION) {
             notifications.postResultIfAny(finished)
             return

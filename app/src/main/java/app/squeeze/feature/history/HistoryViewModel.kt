@@ -9,11 +9,14 @@ import app.squeeze.data.ResultsRepository
 import app.squeeze.feature.queue.ActiveJobsActions
 import app.squeeze.feature.queue.QueueUi
 import app.squeeze.finalize.FinalizeManager
+import app.squeeze.work.ItemLog
+import app.squeeze.work.LogStore
 import app.squeeze.work.QueueManager
 import app.squeeze.data.Stats
 import app.squeeze.data.StatsPeriod
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.withContext
 
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
@@ -29,6 +33,7 @@ class HistoryViewModel @Inject constructor(
     private val finalize: FinalizeManager,
     queueRepository: QueueRepository,
     results: ResultsRepository,
+    private val logs: LogStore,
 ) : ViewModel() {
     /** Running and waiting jobs, and results that wait for replace / save / discard. */
     val jobs: StateFlow<QueueUi> = combine(queueRepository.observeActive(), queue.observeWorkerActive(), results.observeAwaiting(), ::QueueUi)
@@ -53,6 +58,11 @@ class HistoryViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     val stats: StateFlow<Stats?> = _period.flatMapLatest { repository.observeStats(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** True when ffmpeg's log of the item was kept (items from before logs were saved have none). */
+    fun hasLog(itemId: Long): Boolean = logs.exists(itemId)
+
+    suspend fun log(itemId: Long): ItemLog? = withContext(Dispatchers.IO) { logs.read(itemId) }
 
     fun setPeriod(period: StatsPeriod) {
         _period.value = period

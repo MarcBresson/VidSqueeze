@@ -90,7 +90,8 @@ Stats are computed from `Item` joined with `Batch`, filtered by period, grouped 
 - **Stopping**: the run's limits (deadline = end of the window or the external `duration_minutes` / `until`, plus the gates) are stored in DataStore (`RunLimits`). `CompressionWorker` checks them before every `AUTO` item and, while encoding one, every 15 s. When they fail, the current item is cancelled and waiting `AUTO` items are cancelled too (`cancelQueuedAuto`); the next scan picks them up again. Items queued by the user are never affected. A cancelled-only batch is hidden from History.
 - **Background start**: the scan runs as a periodic job, queues the queue worker as expedited work (foreground notification) and that worked from the background on an API 35 emulator. Not yet verified on real devices (battery optimisation, OEM restrictions); the open M0 spike remains.
 - **Suggestions**: `HeavyVideoSelector` (100 MB and up, biggest first, not handled) feeds a card on the Queue screen that opens the normal compression sheet; without library access the card asks for it once.
-- **Automation API**: see [automation.md](automation.md). `AutomationParser` / `AutomationAuth` / `RateLimiter` are pure and unit tested; `AutomationService` checks (switch, rate limit, constant-time token, arguments), executes and logs; the receiver and the trampoline activity are thin.
+- **Shortcuts**: see [automation.md](automation.md). `AppShortcuts` publishes the long-press actions (`run` only while auto is on, kept in sync by `SqueezeApp`); the not-exported `ShortcutActivity` runs them through `AutoRunner` / `QueueManager`. There is no external broadcast API.
+- **Logs**: `ItemProcessor` writes ffmpeg's output of each item to `files/logs/<itemId>.log` through `LogStore` (command on the first line, 256 KB cap); History's "Show logs" sheet reads it. Items from before this have no log.
 
 ## Settings, permissions, about (as built in M7)
 
@@ -99,5 +100,5 @@ Stats are computed from `Item` joined with `Batch`, filtered by period, grouped 
 - **Storage**: "Clear" discards every pending result (`Finalizer.discardAllPending`, originals untouched) and sweeps empty staging folders (`pruneEmptyStagingDirs`, which also runs at app start and ignores folders touched in the last minute).
 - **Notifications**: sound, vibration and visibility are per channel in the system settings; Settings links to each channel (`progress`, `results`). There is no separate "auto summary" channel yet because notifications are per batch.
 - **About**: version, privacy (no `INTERNET` permission, checked in the release manifest), GPL-3 text, the FFmpegKit source offer (a GPL obligation) and the notices of every library bundled in the FFmpegKit AAR (`res/raw/license_*.txt`). `res/raw/keep.xml` stops the resource shrinker from dropping them, and `LicensesTest` fails if a library upgrade removes one. Android library licences are linked (Apache 2.0).
-- **Backup**: `allowBackup` is off. The DataStore holds the automation token and the database holds paths of staged files; neither belongs in a cloud backup.
+- **Backup**: `allowBackup` is off. The database holds paths of staged files and the logs hold file names; neither belongs in a cloud backup.
 - **Release**: see [distribution.md](distribution.md).

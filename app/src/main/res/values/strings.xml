@@ -175,17 +175,23 @@
         <item quantity="other">%d videos</item>
     </plurals>
     <string name="history_started_finished">%1$s → %2$s</string>
-    <string name="history_item_done">%1$s → %2$s · −%3$d%%</string>
+    <string name="history_item_sizes">%1$s → %2$s</string>
+    <string name="history_pill_failed">Failed</string>
     <string name="history_item_no_gain">%1$s · already small, kept as is</string>
-    <string name="history_item_failed">%1$s · failed</string>
     <string name="history_state_pending">Result not used yet</string>
     <string name="history_state_replaced">Replaced the original</string>
     <string name="history_state_saved">Saved as a copy</string>
     <string name="history_state_shared">Shared</string>
     <string name="history_state_discarded">Discarded</string>
-    <string name="history_command">FFmpeg command</string>
-    <string name="history_copy_command">Copy command</string>
-    <string name="history_command_copied">Command copied</string>
+    <string name="history_show_logs">Show logs</string>
+    <string name="history_logs_title">Logs</string>
+    <string name="history_logs_empty">No output was recorded.</string>
+    <string name="history_logs_copy_all">Copy all</string>
+    <string name="history_logs_copied">Logs copied</string>
+    <string name="history_finished_at">Finished %1$s</string>
+    <string name="play_video">Play video</string>
+    <string name="play_no_player">No app can play this video</string>
+    <string name="play_failed">Could not open the video</string>
     <string name="stats_period_all">All time</string>
     <string name="stats_period_year">Past year</string>
     <string name="stats_period_month">Past month</string>
@@ -198,6 +204,14 @@
     <string name="shortcut_run">Run auto compression now</string>
     <string name="shortcut_pause">Pause the queue</string>
     <string name="shortcut_resume">Resume the queue</string>
+    <string name="shortcut_paused">Queue paused</string>
+    <string name="shortcut_resumed">Queue resumed</string>
+    <string name="shortcut_run_nothing">Nothing to compress right now</string>
+    <plurals name="shortcut_run_queued">
+        <item quantity="one">Queued %1$d video (%2$s)</item>
+        <item quantity="other">Queued %1$d videos (%2$s)</item>
+    </plurals>
+    <string name="shortcut_run_skipped">Not started: %1$s</string>
     <string name="nav_auto">Auto</string>
     <string name="auto_title">Auto compression</string>
     <string name="auto_enable">Compress old videos automatically</string>
@@ -208,8 +222,8 @@
     <string name="auto_mode_windows">During off-peak hours</string>
     <string name="auto_mode_windows_hint">Only inside the time windows below</string>
     <string name="auto_mode_charging">Whenever the phone is charging</string>
-    <string name="auto_mode_external">Only when another app starts it</string>
-    <string name="auto_mode_external_hint">For Samsung Routines, Tasker and similar, see Automation below</string>
+    <string name="auto_mode_external">Only when I start it</string>
+    <string name="auto_mode_external_hint">From the Run shortcut on the app icon (long-press it), or Run now below</string>
     <string name="auto_add_window">Add a time window</string>
     <string name="auto_no_window">No valid window: add one with different start and end times and at least one day.</string>
     <string name="auto_window_wraps">Ends the next morning</string>
@@ -250,19 +264,6 @@
     <string name="auto_queued">Queued</string>
     <string name="auto_estimated_saving">About %1$s could be saved (estimate)</string>
     <string name="auto_and_more">…and %1$d more</string>
-    <string name="automation_title">Automation</string>
-    <string name="automation_intro">Let other apps (Samsung Routines, Tasker, MacroDroid, adb) start and stop compression. Every command must carry the secret token below.</string>
-    <string name="automation_enable">Allow external automation</string>
-    <string name="automation_token">Secret token</string>
-    <string name="automation_copy_token">Copy token</string>
-    <string name="automation_regenerate">New token</string>
-    <string name="automation_example">Example</string>
-    <string name="automation_copy_example">Copy command</string>
-    <string name="automation_events">Tell other apps when a batch starts or finishes</string>
-    <string name="automation_log">Received commands</string>
-    <string name="automation_clear_log">Clear</string>
-    <string name="automation_log_empty">Nothing received yet.</string>
-    <string name="suggest_title">Heavy videos</string>
     <string name="suggest_access">Allow access to your videos and Squeeze can point out the ones that take the most space.</string>
 
     <string name="nav_settings">Settings</string>
@@ -347,7 +348,8 @@
         <item quantity="one">%d result ready to review</item>
         <item quantity="other">%d results ready to review</item>
     </plurals>
-    <string name="home_promo_title">Autocompress: save storage automatically</string>
+    <string name="home_auto_title">Autocompress</string>
+    <string name="home_compress_title">Compress videos</string>
     <string name="home_promo_subtitle">Squeeze old videos in the background while you charge.</string>
     <plurals name="home_promo_videos">
         <item quantity="one">%d video</item>

@@ -22,7 +22,7 @@ Full details in [docs/product-spec.md](docs/product-spec.md).
 | [docs/architecture.md](docs/architecture.md) | Tech stack, modules, data model, background processing |
 | [docs/ffmpeg.md](docs/ffmpeg.md) | How FFmpeg is wired up, parameter → CLI mapping |
 | [docs/roadmap.md](docs/roadmap.md) | Milestones |
-| [docs/automation.md](docs/automation.md) | Automation API (Tasker, MacroDroid, Samsung Routines) |
+| [docs/automation.md](docs/automation.md) | Launcher shortcuts (Samsung Routines) |
 | [docs/distribution.md](docs/distribution.md) | Signing, releases, F-Droid / IzzyOnDroid / Play |
 | [docs/adr/](docs/adr/) | Architecture decision records |
 

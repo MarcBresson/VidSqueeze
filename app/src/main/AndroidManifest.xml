@@ -60,26 +60,11 @@
             android:taskAffinity=""
             android:theme="@style/Theme.Squeeze.Translucent" />
 
-        <!-- Automation API: exported on purpose, every command must carry the secret token. -->
-        <receiver
-            android:name=".automation.AutomationReceiver"
-            android:exported="true"
-            tools:ignore="ExportedReceiver">
-            <intent-filter>
-                <action android:name="app.squeeze.action.START_AUTO_RUN" />
-                <action android:name="app.squeeze.action.STOP_AUTO_RUN" />
-                <action android:name="app.squeeze.action.PAUSE_QUEUE" />
-                <action android:name="app.squeeze.action.RESUME_QUEUE" />
-                <action android:name="app.squeeze.action.CANCEL_ALL" />
-                <action android:name="app.squeeze.action.SET_AUTO_ENABLED" />
-                <action android:name="app.squeeze.action.COMPRESS_FOLDER" />
-            </intent-filter>
-        </receiver>
-
+        <!-- Launcher shortcuts (run / pause / resume); not exported, only the launcher can start it. -->
         <activity
-            android:name=".automation.AutomationTriggerActivity"
+            android:name=".shortcuts.ShortcutActivity"
             android:excludeFromRecents="true"
-            android:exported="true"
+            android:exported="false"
             android:taskAffinity=""
             android:theme="@style/Theme.Squeeze.Translucent" />
 
