@@ -29,8 +29,22 @@ sealed interface BuildResult {
  */
 object FfmpegCommandBuilder {
 
-    internal const val TONE_MAP_CHAIN =
-        "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv"
+    /**
+     * HDR to SDR tone mapping. The first zscale pins the input transfer, matrix and primaries instead of
+     * trusting the frame tags: frames that are untagged (Dolby Vision) or tagged as an RGB matrix on YUV data
+     * make zimg fail with "no path between colorspaces" / "YUV color family cannot have RGB matrix coefficients".
+     */
+    internal fun toneMapChain(source: SourceInfo): String {
+        val transfer = source.colorTransfer?.takeIf { it in HDR_TRANSFERS } ?: SourceInfo.TRANSFER_PQ
+        val matrix = source.colorSpace?.takeIf { it in YUV_MATRICES } ?: "bt2020nc"
+        val primaries = source.colorPrimaries?.takeIf { it in WIDE_PRIMARIES } ?: "bt2020"
+        return "zscale=tin=$transfer:min=$matrix:pin=$primaries:rin=tv:t=linear:npl=100:p=$primaries," +
+            "format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv"
+    }
+
+    private val HDR_TRANSFERS = setOf(SourceInfo.TRANSFER_PQ, SourceInfo.TRANSFER_HLG)
+    private val YUV_MATRICES = setOf("bt2020nc", "bt709")
+    private val WIDE_PRIMARIES = setOf("bt2020", "bt709", "smpte432")
 
     fun build(
         params: FfmpegParams,
@@ -256,7 +270,7 @@ object FfmpegCommandBuilder {
             }
         }
 
-        if (plan.toneMap) filters += TONE_MAP_CHAIN
+        if (plan.toneMap) filters += toneMapChain(source)
         plan.pixFmt.ffName?.let { filters += "format=$it" }
         return filters
     }

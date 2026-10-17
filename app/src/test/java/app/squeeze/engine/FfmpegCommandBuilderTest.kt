@@ -122,6 +122,33 @@ class FfmpegCommandBuilderTest {
         assertTrue(r.args.zipWithNext().contains("-color_trc" to "bt709"))
     }
 
+    private fun toneMapVf(source: SourceInfo, params: FfmpegParams = FfmpegParams(dynamicRange = DynamicRange.FORCE_SDR)): String {
+        val r = ok(params, source)
+        return r.args[r.args.indexOf("-vf") + 1]
+    }
+
+    @Test
+    fun toneMapPinsTheInputFromTheProbe() {
+        val vf = toneMapVf(hdr)
+        assertTrue(vf, vf.contains("zscale=tin=smpte2084:min=bt2020nc:pin=bt2020:rin=tv:t=linear:npl=100:p=bt2020,format=gbrpf32le"))
+        val hlg = toneMapVf(hdr.copy(colorTransfer = "arib-std-b67"))
+        assertTrue(hlg, hlg.contains("tin=arib-std-b67:"))
+    }
+
+    @Test
+    fun toneMapFallsBackWhenTagsAreMissingOrNotYuv() {
+        val untagged = toneMapVf(hdr.copy(colorTransfer = null, colorPrimaries = null, colorSpace = null, dolbyVisionProfile = 8))
+        assertTrue(untagged, untagged.contains("zscale=tin=smpte2084:min=bt2020nc:pin=bt2020:"))
+        val rgbMatrix = toneMapVf(hdr.copy(colorSpace = "gbr"))
+        assertTrue(rgbMatrix, rgbMatrix.contains("min=bt2020nc:") && !rgbMatrix.contains("min=gbr"))
+    }
+
+    @Test
+    fun hardwareEncoderToneMapsWithPinnedInput() {
+        val vf = toneMapVf(hdr, FfmpegParams(videoCodec = VideoCodec.H264, encoderKind = EncoderKind.HARDWARE_MEDIACODEC, rateControl = RateControl.BitrateKbps(8000)))
+        assertTrue(vf, vf.contains("zscale=tin=smpte2084:min=bt2020nc"))
+    }
+
     @Test
     fun forceSdrOnSdrSourceSkipsChain() {
         val r = ok(FfmpegParams(dynamicRange = DynamicRange.FORCE_SDR))

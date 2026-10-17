@@ -142,14 +142,49 @@ class FfmpegKitEngineTest {
         assertEquals(RunResult.Success, engine.run(listOf("-y", "-i", clip.absolutePath, "-t", "1", "-c", "copy", File(dir, "after.mp4").absolutePath), 1000))
     }
 
-    @Test
-    fun toneMapChainIsAvailableInTheBuild() = runBlocking {
+    private val hdrSource = SourceInfo(
+        container = Container.MP4, width = 320, height = 240, fps = 10.0, videoCodec = "hevc", pixFmt = "yuv420p10le",
+        colorTransfer = "smpte2084", colorPrimaries = "bt2020", colorSpace = "bt2020nc",
+    )
+
+    /**
+     * Runs the tone-map chain on 10-bit frames carrying [frameTags] (what a decoder hands the filter graph),
+     * with a chain built from [source] (what the probe reported).
+     */
+    private suspend fun toneMap(source: SourceInfo, frameTags: String): RunResult {
         val args = listOf(
             "-y", "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=10:duration=1",
-            "-vf", "format=yuv420p10le,setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc,${FfmpegCommandBuilder.TONE_MAP_CHAIN},format=yuv420p",
+            "-vf", "format=yuv420p10le,setparams=$frameTags,${FfmpegCommandBuilder.toneMapChain(source)},format=yuv420p",
             "-f", "null", "-",
         )
-        val result = engine.run(args, 1000)
+        return engine.run(args, 1000)
+    }
+
+    @Test
+    fun toneMapChainIsAvailableInTheBuild() = runBlocking {
+        val result = toneMap(hdrSource, "color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc")
+        assertEquals(result.toString(), RunResult.Success, result)
+    }
+
+    @Test
+    fun toneMapChainHandlesHlg() = runBlocking {
+        val source = hdrSource.copy(colorTransfer = "arib-std-b67")
+        val result = toneMap(source, "color_primaries=bt2020:color_trc=arib-std-b67:colorspace=bt2020nc")
+        assertEquals(result.toString(), RunResult.Success, result)
+    }
+
+    /** YUV frames tagged with an RGB matrix used to fail with zimg code 1026. */
+    @Test
+    fun toneMapChainSurvivesRgbMatrixTagOnYuvFrames() = runBlocking {
+        val result = toneMap(hdrSource.copy(colorSpace = "gbr"), "color_primaries=bt2020:color_trc=smpte2084:colorspace=gbr")
+        assertEquals(result.toString(), RunResult.Success, result)
+    }
+
+    /** Untagged frames (Dolby Vision) used to fail with zimg code 3074. */
+    @Test
+    fun toneMapChainSurvivesUntaggedFrames() = runBlocking {
+        val source = hdrSource.copy(colorTransfer = null, colorPrimaries = null, colorSpace = null, dolbyVisionProfile = 8)
+        val result = toneMap(source, "color_primaries=unknown:color_trc=unknown:colorspace=unknown")
         assertEquals(result.toString(), RunResult.Success, result)
     }
 
