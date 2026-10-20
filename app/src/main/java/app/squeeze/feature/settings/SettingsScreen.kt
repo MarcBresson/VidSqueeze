@@ -49,6 +49,7 @@ import app.squeeze.work.NotificationHelper
 @Composable
 fun SettingsScreen(
     onOpenPermissions: () -> Unit,
+    onOpenCapabilities: () -> Unit,
     onOpenAbout: () -> Unit,
     vm: SettingsViewModel = hiltViewModel(),
 ) {
@@ -72,6 +73,7 @@ fun SettingsScreen(
             item {
                 SectionCard(stringResource(R.string.settings_more)) {
                     LinkRow(stringResource(R.string.perm_title), stringResource(R.string.settings_permissions_hint), onOpenPermissions)
+                    LinkRow(stringResource(R.string.caps_title), stringResource(R.string.settings_capabilities_hint), onOpenCapabilities)
                     LinkRow(stringResource(R.string.about_title), stringResource(R.string.settings_about_hint), onOpenAbout)
                 }
             }

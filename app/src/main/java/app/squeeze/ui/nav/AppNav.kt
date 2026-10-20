@@ -31,6 +31,7 @@ import app.squeeze.feature.presets.PresetEditorScreen
 import app.squeeze.feature.presets.PresetsScreen
 import app.squeeze.feature.home.HomeScreen
 import app.squeeze.feature.settings.AboutScreen
+import app.squeeze.feature.settings.CapabilitiesScreen
 import app.squeeze.feature.settings.LicenseTextScreen
 import app.squeeze.feature.settings.LicensesScreen
 import app.squeeze.feature.settings.OnboardingScreen
@@ -47,6 +48,7 @@ object Routes {
     const val ONBOARDING = "onboarding"
     const val SETTINGS = "settings"
     const val PERMISSIONS = "permissions"
+    const val CAPABILITIES = "capabilities"
     const val ABOUT = "about"
     const val LICENSES = "licenses"
     const val LICENSE_TEXT = "licenses/{name}"
@@ -102,10 +104,12 @@ private fun NavGraphBuilder.appGraph(nav: NavHostController) {
     composable(Routes.SETTINGS) {
         SettingsScreen(
             onOpenPermissions = { nav.navigate(Routes.PERMISSIONS) },
+            onOpenCapabilities = { nav.navigate(Routes.CAPABILITIES) },
             onOpenAbout = { nav.navigate(Routes.ABOUT) },
         )
     }
     composable(Routes.PERMISSIONS) { PermissionsScreen(onBack = { nav.popBackStack() }) }
+    composable(Routes.CAPABILITIES) { CapabilitiesScreen(onBack = { nav.popBackStack() }) }
     composable(Routes.ABOUT) {
         AboutScreen(
             onBack = { nav.popBackStack() },

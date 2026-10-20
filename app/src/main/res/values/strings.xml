@@ -350,6 +350,27 @@
     <string name="settings_more">More</string>
     <string name="settings_permissions_hint">Videos, notifications, replacing without asking, battery</string>
     <string name="settings_about_hint">Version, licences and privacy</string>
+    <string name="settings_capabilities_hint">Which video and audio encoders this phone has</string>
+
+    <string name="caps_title">Device capabilities</string>
+    <string name="caps_intro">The encoders this phone offers. Hardware encoders are fast and easy on the battery; software ones are slower and use more battery. Constant quality keeps the quality steady instead of aiming for a bitrate.</string>
+    <string name="caps_video">Video encoders</string>
+    <string name="caps_audio">Audio encoders</string>
+    <string name="caps_hardware">Hardware</string>
+    <string name="caps_software">Software</string>
+    <string name="caps_cq">Constant quality</string>
+    <string name="caps_no_hardware">No hardware encoder on this device</string>
+    <string name="caps_empty">This device reports no encoders.</string>
+    <string name="caps_max_size">Up to %1$d×%2$d</string>
+    <string name="caps_max_fps">%1$d fps</string>
+    <string name="caps_max_bitrate_mbps">Up to %1$d Mbps</string>
+    <string name="caps_max_bitrate_kbps">Up to %1$d kbps</string>
+    <string name="caps_sample_rate">%1$s–%2$s kHz</string>
+    <string name="caps_sample_rate_single">%1$s kHz</string>
+    <plurals name="caps_channels">
+        <item quantity="one">Up to %d channel</item>
+        <item quantity="other">Up to %d channels</item>
+    </plurals>
 
     <string name="about_title">About</string>
     <string name="about_version">Version %1$s</string>
