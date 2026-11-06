@@ -11,6 +11,7 @@ import android.text.format.Formatter
 import androidx.core.app.NotificationCompat
 import androidx.work.ForegroundInfo
 import app.squeeze.MainActivity
+import app.squeeze.NotificationTarget
 import app.squeeze.R
 import app.squeeze.data.BatchSummary
 import app.squeeze.finalize.FinalizeAction
@@ -163,7 +164,7 @@ class NotificationHelper @Inject constructor(@ApplicationContext private val con
             .setContentTitle(context.getString(R.string.notif_result_title))
             .setContentText(headline)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            .setContentIntent(openApp())
+            .setContentIntent(openHistory(batchId))
             .setAutoCancel(true)
         if (withActions) {
             builder
@@ -197,6 +198,15 @@ class NotificationHelper @Inject constructor(@ApplicationContext private val con
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
+    /** Opens the app on the History tab focused on this batch; own request-code space so it never collides with [openApp]. */
+    private fun openHistory(batchId: Long): PendingIntent = PendingIntent.getActivity(
+        context, RESULT_REQUEST_BASE + batchId.toInt(),
+        Intent(context, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .putExtra(NotificationTarget.EXTRA_BATCH_ID, batchId),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
     private fun action(name: String): PendingIntent = PendingIntent.getBroadcast(
         context, name.hashCode(),
         Intent(context, QueueActionReceiver::class.java).setAction(name),
@@ -209,6 +219,7 @@ class NotificationHelper @Inject constructor(@ApplicationContext private val con
         const val PROGRESS_ID = 1
         const val FINALIZE_ID = 2
         private const val RESULT_ID_BASE = 1000
+        private const val RESULT_REQUEST_BASE = 10_000
         private const val PROGRESS_MAX = 1000
 
         /** "12 min", "1 h 05 min", "40 s": coarse on purpose, the estimate is rough. */

@@ -6,6 +6,7 @@ import android.content.Context
 import android.text.format.Formatter
 import android.widget.Toast
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,6 +20,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Compare
@@ -28,6 +30,7 @@ import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -40,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,11 +83,17 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HistoryScreen(onCompare: (Long) -> Unit = {}, vm: HistoryViewModel = hiltViewModel()) {
+fun HistoryScreen(
+    onCompare: (Long) -> Unit = {},
+    focusBatch: Long? = null,
+    onFocusConsumed: () -> Unit = {},
+    vm: HistoryViewModel = hiltViewModel(),
+) {
     val pagerState = rememberPagerState { 2 }
     val scope = rememberCoroutineScope()
     Scaffold(
@@ -108,29 +118,53 @@ fun HistoryScreen(onCompare: (Long) -> Unit = {}, vm: HistoryViewModel = hiltVie
                 )
             }
             HorizontalPager(pagerState, Modifier.fillMaxSize()) { page ->
-                if (page == 0) HistoryList(vm, onCompare) else StatsPane(vm)
+                if (page == 0) HistoryList(vm, focusBatch, onFocusConsumed, onCompare) else StatsPane(vm)
             }
         }
     }
 }
 
 @Composable
-private fun HistoryList(vm: HistoryViewModel, onCompare: (Long) -> Unit) {
+private fun HistoryList(vm: HistoryViewModel, target: Long?, onTargetConsumed: () -> Unit, onCompare: (Long) -> Unit) {
     val history by vm.history.collectAsStateWithLifecycle()
     val jobs by vm.jobs.collectAsStateWithLifecycle()
     var logsOf by rememberSaveable { mutableStateOf<Long?>(null) }
+    val listState = rememberLazyListState()
+    var highlightedBatch by rememberSaveable { mutableStateOf<Long?>(null) }
     val entries = history ?: return
     if (entries.isEmpty() && jobs.items.isEmpty()) {
         Text(stringResource(R.string.history_empty), modifier = Modifier.padding(16.dp))
         return
     }
+    LaunchedEffect(target, entries) {
+        if (target == null) return@LaunchedEffect
+        val entryIndex = entries.indexOfFirst { it.batch.id == target }
+        if (entryIndex < 0) return@LaunchedEffect // batch not in this list (yet): give up silently
+        // The list starts with the active-jobs section: a controls row plus one row per job.
+        val jobsHeader = if (jobs.items.isEmpty()) 0 else 1 + jobs.items.size
+        listState.scrollToItem(jobsHeader + entryIndex)
+        highlightedBatch = target
+        onTargetConsumed()
+        delay(5_000) // the highlight is a momentary pointer, not a permanent state
+        if (highlightedBatch == target) highlightedBatch = null
+    }
     LazyColumn(
+        state = listState,
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         activeJobs(jobs, vm.jobActions)
         items(entries, key = { it.batch.id }) { entry ->
-            HistoryCard(entry, vm::hasLog, vm.batchActions, vm.itemActions, onCompare) { logsOf = it }
+            HistoryCard(
+                entry,
+                vm::hasLog,
+                vm.batchActions,
+                vm.itemActions,
+                onCompare,
+                { logsOf = it },
+                highlighted = entry.batch.id == highlightedBatch,
+                expandItem = entry.batch.id == highlightedBatch,
+            )
         }
     }
     logsOf?.let { LogSheet(it, vm, onDismiss = { logsOf = null }) }
@@ -144,12 +178,20 @@ private fun HistoryCard(
     itemActions: ItemResultActions,
     onCompare: (Long) -> Unit,
     onShowLogs: (Long) -> Unit,
+    highlighted: Boolean,
+    expandItem: Boolean,
 ) {
     val single = entry.single
-    Card(Modifier.fillMaxWidth()) {
+    Card(
+        Modifier
+            .fillMaxWidth()
+            .then(
+                if (highlighted) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CardDefaults.shape) else Modifier,
+            ),
+    ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (single != null) {
-                ItemBlock(single, entry.batch.presetName, hasLog, itemActions, onCompare, onShowLogs, alwaysActions = true)
+                ItemBlock(single, entry.batch.presetName, hasLog, itemActions, onCompare, onShowLogs, alwaysActions = true, initiallyOpen = expandItem)
             } else {
                 BatchHeader(entry, batchActions)
                 entry.items.forEach { ItemBlock(it, presetName = null, hasLog, itemActions, onCompare, onShowLogs, alwaysActions = false) }
@@ -219,9 +261,10 @@ private fun ItemBlock(
     onCompare: (Long) -> Unit,
     onShowLogs: (Long) -> Unit,
     alwaysActions: Boolean,
+    initiallyOpen: Boolean = false,
 ) {
     val context = LocalContext.current
-    var open by rememberSaveable(item.id) { mutableStateOf(false) }
+    var open by rememberSaveable(item.id) { mutableStateOf(initiallyOpen) }
     val result = remember(item.id, item.status, item.finalUri, item.stagedPath) { resultVideo(context, item) }
     val thumbnail = remember(item.id, result) { result ?: sourceVideo(item) }
     Row(

@@ -11,6 +11,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -58,10 +59,18 @@ object Routes {
 }
 
 @Composable
-fun AppNav(startWithOnboarding: Boolean = false) {
+fun AppNav(
+    startWithOnboarding: Boolean = false,
+    notificationTarget: Long? = null,
+    onTargetConsumed: () -> Unit = {},
+) {
     val nav = rememberNavController()
     val destination = nav.currentBackStackEntryAsState().value?.destination
     val showBar = TopLevelDestination.entries.any { tab -> destination?.hierarchy?.any { it.route == tab.route } == true }
+    // A result-notification tap switches to History even while another screen is on top.
+    LaunchedEffect(notificationTarget) {
+        if (notificationTarget != null) nav.navigateToTab(Routes.HISTORY)
+    }
     // The screens inside handle the status bar and, without the bar, the navigation bar themselves.
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -71,10 +80,14 @@ fun AppNav(startWithOnboarding: Boolean = false) {
         val bottom = PaddingValues(bottom = inner.calculateBottomPadding())
         NavHost(
             navController = nav,
-            startDestination = if (startWithOnboarding) Routes.ONBOARDING else Routes.HOME,
+            startDestination = when {
+                startWithOnboarding -> Routes.ONBOARDING
+                notificationTarget != null -> Routes.HISTORY
+                else -> Routes.HOME
+            },
             modifier = Modifier.padding(bottom).consumeWindowInsets(bottom),
         ) {
-            appGraph(nav)
+            appGraph(nav, notificationTarget, onTargetConsumed)
         }
     }
 }
@@ -94,7 +107,7 @@ private fun BottomBar(nav: NavHostController) {
     }
 }
 
-private fun NavGraphBuilder.appGraph(nav: NavHostController) {
+private fun NavGraphBuilder.appGraph(nav: NavHostController, notificationTarget: Long?, onTargetConsumed: () -> Unit) {
     composable(Routes.ONBOARDING) {
         OnboardingScreen(onDone = {
             nav.navigate(Routes.HOME) { popUpTo(Routes.ONBOARDING) { inclusive = true } }
@@ -124,7 +137,13 @@ private fun NavGraphBuilder.appGraph(nav: NavHostController) {
         LicenseTextScreen(rawName = requireNotNull(entry.arguments?.getString("name")), onBack = { nav.popBackStack() })
     }
     composable(Routes.AUTO) { AutoScreen() }
-    composable(Routes.HISTORY) { HistoryScreen(onCompare = { nav.navigate(Routes.compare(it)) }) }
+    composable(Routes.HISTORY) {
+        HistoryScreen(
+            onCompare = { nav.navigate(Routes.compare(it)) },
+            focusBatch = notificationTarget,
+            onFocusConsumed = onTargetConsumed,
+        )
+    }
     composable(Routes.COMPARE, arguments = listOf(navArgument("itemId") { type = NavType.LongType })) {
         CompareScreen(onBack = { nav.popBackStack() })
     }

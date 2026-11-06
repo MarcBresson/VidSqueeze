@@ -1,5 +1,6 @@
 package app.squeeze
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -22,8 +23,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        NotificationTarget.batchIdFrom(intent)?.let(app::openFromNotification)
         setContent {
             val ui by app.ui.collectAsStateWithLifecycle()
+            val notificationTarget by app.notificationTarget.collectAsStateWithLifecycle()
             val state = ui ?: return@setContent
             val dark = when (state.themeMode) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
@@ -38,8 +41,18 @@ class MainActivity : ComponentActivity() {
             }
             SqueezeTheme(darkTheme = dark, dynamicColor = state.dynamicColor) {
                 // The start screen is fixed once: finishing onboarding navigates away, it does not restart the graph.
-                AppNav(startWithOnboarding = !state.onboardingDone)
+                AppNav(
+                    startWithOnboarding = !state.onboardingDone,
+                    notificationTarget = notificationTarget,
+                    onTargetConsumed = app::clearNotificationTarget,
+                )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        NotificationTarget.batchIdFrom(intent)?.let(app::openFromNotification)
     }
 }
