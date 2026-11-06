@@ -191,6 +191,7 @@
     <string name="history_state_shared">Shared</string>
     <string name="history_state_discarded">Discarded</string>
     <string name="history_show_logs">Show logs</string>
+    <string name="history_play_original">Play original</string>
     <string name="history_logs_title">Logs</string>
     <string name="history_logs_empty">No output was recorded.</string>
     <string name="history_logs_copy_all">Copy all</string>

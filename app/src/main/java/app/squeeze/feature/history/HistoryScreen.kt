@@ -90,6 +90,7 @@ import app.squeeze.ui.Pill
 import app.squeeze.ui.media.PlayButton
 import app.squeeze.ui.media.VideoRef
 import app.squeeze.ui.media.VideoThumbnail
+import app.squeeze.ui.media.playVideo
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
@@ -215,6 +216,7 @@ private fun HistoryList(vm: HistoryViewModel, target: Long?, onTargetConsumed: (
                 vm.itemActions,
                 onCompare,
                 { logsOf = it },
+                vm::refreshMissing,
                 highlighted = entry.batch.id == highlightedBatch,
                 expandItem = entry.batch.id == highlightedBatch,
             )
@@ -232,6 +234,7 @@ private fun HistoryCard(
     itemActions: ItemResultActions,
     onCompare: (Long) -> Unit,
     onShowLogs: (Long) -> Unit,
+    onCheckOriginal: (BatchItemEntity) -> Unit,
     highlighted: Boolean,
     expandItem: Boolean,
 ) {
@@ -245,10 +248,10 @@ private fun HistoryCard(
     ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (single != null) {
-                ItemBlock(single, entry.batch.presetName, missing, hasLog, itemActions, onCompare, onShowLogs, alwaysActions = true, initiallyOpen = expandItem)
+                ItemBlock(single, entry.batch.presetName, missing, hasLog, itemActions, onCompare, onShowLogs, onCheckOriginal, alwaysActions = true, initiallyOpen = expandItem)
             } else {
                 BatchHeader(entry, batchActions)
-                entry.items.forEach { ItemBlock(it, presetName = null, missing, hasLog, itemActions, onCompare, onShowLogs, alwaysActions = false) }
+                entry.items.forEach { ItemBlock(it, presetName = null, missing, hasLog, itemActions, onCompare, onShowLogs, onCheckOriginal, alwaysActions = false) }
             }
         }
     }
@@ -315,6 +318,7 @@ private fun ItemBlock(
     itemActions: ItemResultActions,
     onCompare: (Long) -> Unit,
     onShowLogs: (Long) -> Unit,
+    onCheckOriginal: (BatchItemEntity) -> Unit,
     alwaysActions: Boolean,
     initiallyOpen: Boolean = false,
 ) {
@@ -322,6 +326,8 @@ private fun ItemBlock(
     var open by rememberSaveable(item.id) { mutableStateOf(initiallyOpen) }
     val result = remember(item.id, item.status, item.finalUri, item.stagedPath) { resultVideo(context, item) }
     val thumbnail = remember(item.id, result) { result ?: sourceVideo(item) }
+    // The Play-original button rides on the original still existing, so re-check each time the row opens.
+    if (open && canPlayOriginal(item)) LaunchedEffect(item.id) { onCheckOriginal(item) }
     Row(
         Modifier.fillMaxWidth().clickable { open = !open },
         verticalAlignment = Alignment.Top,
@@ -387,6 +393,12 @@ private fun ItemBlock(
                 }
                 item.error?.let { Text(it.lineSequence().first(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
                 finalizeLabel(item)?.let { Text(stringResource(it), style = MaterialTheme.typography.bodySmall) }
+                // Unknown-yet items (missing[id] == null) show nothing until the on-expand check lands.
+                if (canPlayOriginal(item) && missing[item.id] == false) {
+                    TextButton(onClick = { context.playVideo(sourceVideo(item)) }, contentPadding = PaddingValues(0.dp)) {
+                        Text(stringResource(R.string.history_play_original))
+                    }
+                }
                 if (hasLog(item.id)) {
                     TextButton(onClick = { onShowLogs(item.id) }, contentPadding = PaddingValues(0.dp)) {
                         Text(stringResource(R.string.history_show_logs))
@@ -466,6 +478,16 @@ private fun resultVideo(context: Context, item: BatchItemEntity): VideoRef? {
 private fun canCompare(item: BatchItemEntity): Boolean =
     item.status == ItemStatus.DONE && item.finalizeState == FinalizeState.SAVED && item.finalUri != null &&
         item.mediaStoreId != null && !item.isImported
+
+/** Statuses done with the queue, whether or not compression succeeded. */
+private val FINISHED_STATUSES = setOf(ItemStatus.DONE, ItemStatus.FAILED, ItemStatus.SKIPPED_NO_GAIN, ItemStatus.CANCELLED)
+
+/**
+ * A finished item whose original plausibly still exists: replacing deleted the original, and queued or
+ * running items are still working on it. Existence itself is checked when the row is expanded.
+ */
+internal fun canPlayOriginal(item: BatchItemEntity): Boolean =
+    item.status in FINISHED_STATUSES && item.finalizeState != FinalizeState.REPLACED
 
 /** What to draw when there is no result: the original, as far as it can still be read. */
 private fun sourceVideo(item: BatchItemEntity): VideoRef {

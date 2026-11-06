@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.squeeze.R
+import app.squeeze.data.BatchItemEntity
 import app.squeeze.data.HistoryEntry
 import app.squeeze.data.HistoryRepository
 import app.squeeze.data.QueueRepository
@@ -164,6 +165,14 @@ class HistoryViewModel @Inject constructor(
 
     fun setFilters(filters: HistoryFilters) {
         _filters.value = filters
+    }
+
+    /** Re-checks one item's original, for the Play-original button shown when its row is expanded. */
+    fun refreshMissing(item: BatchItemEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val gone = checker.isMissing(item)
+            _missing.value = _missing.value + (item.id to gone)
+        }
     }
 
     fun setSizeBucket(index: Int?) = update { it.copy(sizeBucketIndex = index) }
