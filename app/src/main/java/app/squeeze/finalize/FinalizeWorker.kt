@@ -24,6 +24,7 @@ class FinalizeWorker @AssistedInject constructor(
 ) : CoroutineWorker(context, params) {
 
     private val batchId get() = inputData.getLong(KEY_BATCH, -1)
+    private val itemId get() = inputData.getLong(KEY_ITEM, -1)
     private val action get() = FinalizeAction.valueOf(inputData.getString(KEY_ACTION) ?: FinalizeAction.SAVE.name)
 
     override suspend fun getForegroundInfo(): ForegroundInfo = notifications.finalizeForegroundInfo(action)
@@ -36,11 +37,14 @@ class FinalizeWorker @AssistedInject constructor(
             Log.w(TAG, "Could not start the foreground service", e)
         }
         return try {
-            val report = when (action) {
-                FinalizeAction.REPLACE -> finalizer.replace(batchId)
+            val report = when {
+                itemId >= 0 && action == FinalizeAction.REPLACE -> finalizer.replaceItem(itemId)
+                itemId >= 0 -> finalizer.saveCopyItem(itemId)
+                action == FinalizeAction.REPLACE -> finalizer.replace(batchId)
                 else -> finalizer.saveCopies(batchId)
             }
-            notifications.postFinalized(batchId, report, stillPending = results.pending(batchId).isNotEmpty())
+            val batch = if (itemId >= 0) results.item(itemId)?.batchId ?: batchId else batchId
+            notifications.postFinalized(batch, report, stillPending = results.pending(batch).isNotEmpty())
             Result.success(
                 workDataOf(
                     KEY_ORIGINALS_TO_DELETE to report.originalsToDelete.take(MAX_URIS).toTypedArray(),
@@ -57,6 +61,7 @@ class FinalizeWorker @AssistedInject constructor(
 
     companion object {
         const val KEY_BATCH = "batch"
+        const val KEY_ITEM = "item"
         const val KEY_ACTION = "action"
         /** Output: URIs of originals that still have to be deleted with the user's approval. */
         const val KEY_ORIGINALS_TO_DELETE = "originals_to_delete"

@@ -1,6 +1,7 @@
 package app.squeeze.data
 
 import androidx.room.ColumnInfo
+import app.squeeze.finalize.FinalizePlanner
 
 enum class StatsPeriod(val days: Long?) {
     ALL(null),
@@ -87,13 +88,18 @@ data class HistoryEntry(val batch: BatchEntity, val items: List<BatchItemEntity>
 
     /** A single-item batch is shown as the item itself. */
     val single: BatchItemEntity? get() = items.singleOrNull()
+
+    /** Items whose compressed result still waits for a decision. */
+    val pendingResults: List<BatchItemEntity> get() = FinalizePlanner.pending(items)
+
+    val hasPendingResults: Boolean get() = pendingResults.isNotEmpty()
 }
 
 object HistoryBuilder {
     /** Groups items under their batches; batches with nothing to show (all cancelled) are left out. */
     fun build(batches: List<BatchEntity>, items: List<BatchItemEntity>): List<HistoryEntry> {
         val byBatch = items.groupBy { it.batchId }
-        return batches.sortedByDescending { it.createdAt }.mapNotNull { batch ->
+        return batches.sortedByDescending { it.finishedAt ?: it.createdAt }.mapNotNull { batch ->
             val shown = byBatch[batch.id].orEmpty().filter { it.status != ItemStatus.CANCELLED }.sortedBy { it.position }
             if (shown.isEmpty()) null else HistoryEntry(batch, shown)
         }

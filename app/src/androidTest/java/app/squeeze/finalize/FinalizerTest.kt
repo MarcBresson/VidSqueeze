@@ -106,21 +106,22 @@ class FinalizerTest {
     /** A batch with one compressed result waiting; returns its item. */
     private fun awaiting(
         staged: File, original: Uri?, displayName: String, originalSize: Long, durationMs: Long = 2_000, imported: Boolean = false,
+        batchId: Long = 0,
     ): BatchItemEntity = runBlocking {
-        val batchId = db.batchDao().insert(
+        val id = if (batchId > 0) batchId else db.batchDao().insert(
             BatchEntity(
                 source = BatchSource.PICKER, presetId = null, presetName = "Test", presetSnapshotJson = "{}",
                 exportMode = ExportMode.ASK_WHEN_DONE, createdAt = 1, finishedAt = 2, status = BatchStatus.AWAITING_ACTION,
             ),
         )
         val item = BatchItemEntity(
-            batchId = batchId, position = nextId++, sourceUri = original?.toString() ?: "file:///x",
+            batchId = id, position = nextId++, sourceUri = original?.toString() ?: "file:///x",
             mediaStoreId = original?.lastPathSegment?.toLong(), isImported = imported, displayName = displayName,
             originalSize = originalSize, outputSize = staged.length(), durationMs = durationMs, status = ItemStatus.DONE,
             stagedPath = staged.absolutePath,
         )
-        val id = db.batchItemDao().insertAll(listOf(item)).single()
-        item.copy(id = id)
+        val itemId = db.batchItemDao().insertAll(listOf(item)).single()
+        item.copy(id = itemId)
     }
 
     private val dateTaken = 1_600_000_000_000L // 2020-09-13T12:26:40Z
@@ -385,6 +386,78 @@ class FinalizerTest {
         assertTrue(send.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
         assertEquals(a.length(), resolver.openAssetFileDescriptor(uri, "r")!!.use { it.length })
         assertTrue(a.exists())
+    }
+
+    /** A batch with two pending results, like a user would get from picking two videos. */
+    private fun twoAwaiting(): Pair<BatchItemEntity, BatchItemEntity> {
+        val a = File(dir, "a - compressed.mp4").also { clip("a.mp4", 1, "320x180", 35).copyTo(it) }
+        val b = File(dir, "b - compressed.mp4").also { clip("b.mp4", 1, "320x180", 35).copyTo(it) }
+        val sharedBatch = awaiting(a, null, "a.mp4", 100).batchId
+        return awaiting(a, null, "a.mp4", 100, batchId = sharedBatch) to awaiting(b, null, "b.mp4", 100, batchId = sharedBatch)
+    }
+
+    @Test
+    fun savingOneItemLeavesTheOthersPending() = runBlocking {
+        val (first, second) = twoAwaiting()
+
+        val report = finalizer.saveCopyItem(first.id)
+
+        assertEquals(1, report.savedAsCopy)
+        assertEquals(FinalizeState.SAVED, db.batchItemDao().get(first.id)!!.finalizeState)
+        assertNull(db.batchItemDao().get(first.id)!!.stagedPath)
+        val untouched = db.batchItemDao().get(second.id)!!
+        assertEquals(FinalizeState.PENDING, untouched.finalizeState)
+        assertNotNull(untouched.stagedPath)
+        assertTrue(untouched.stagedPath!!.let(::File).isFile)
+        assertEquals(BatchStatus.AWAITING_ACTION, db.batchDao().get(first.batchId)!!.status)
+    }
+
+    @Test
+    fun discardingOneItemLeavesTheOthersPending() = runBlocking {
+        val (first, second) = twoAwaiting()
+        val staged = File(requireNotNull(db.batchItemDao().get(first.id)!!.stagedPath))
+
+        finalizer.discardItem(first.id)
+
+        assertFalse(staged.exists())
+        assertEquals(FinalizeState.DISCARDED, db.batchItemDao().get(first.id)!!.finalizeState)
+        assertEquals(FinalizeState.PENDING, db.batchItemDao().get(second.id)!!.finalizeState)
+        assertTrue(File(requireNotNull(db.batchItemDao().get(second.id)!!.stagedPath)).isFile)
+        assertEquals(BatchStatus.AWAITING_ACTION, db.batchDao().get(first.batchId)!!.status)
+    }
+
+    @Test
+    fun actingOnAnAlreadyFinalizedItemIsANoOp() = runBlocking {
+        val (first, _) = twoAwaiting()
+        finalizer.discardItem(first.id)
+
+        assertEquals(FinalizeReport(), finalizer.saveCopyItem(first.id))
+        assertEquals(FinalizeReport(), finalizer.replaceItem(first.id))
+        finalizer.discardItem(first.id) // must not throw
+        assertNull(finalizer.shareIntentItem(first.id))
+        assertEquals(FinalizeState.DISCARDED, db.batchItemDao().get(first.id)!!.finalizeState)
+    }
+
+    @Test
+    fun reshareSharesTheSavedCopyAfterFinalizing() = runBlocking {
+        val a = File(dir, "a - compressed.mp4").also { clip("a.mp4", 1, "320x180", 35).copyTo(it) }
+        val item = awaiting(a, null, "a.mp4", 100)
+
+        val before = requireNotNull(finalizer.shareIntentItem(item.id))
+        assertEquals(
+            "a - compressed.mp4",
+            before.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)!!
+                .getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)!!.lastPathSegment,
+        )
+
+        finalizer.saveCopyItem(item.id)
+        val saved = db.batchItemDao().get(item.id)!!
+        val after = requireNotNull(finalizer.shareIntentItem(item.id))
+        val stream = after.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)!!
+            .getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)!!
+        assertEquals(Uri.parse(saved.finalUri), stream)
+        assertTrue(resolver.openAssetFileDescriptor(stream, "r")!!.use { it.length } > 0)
+        inserted += stream
     }
 
     private fun assertNotEquals(a: Any, b: Any) = assertTrue("$a should differ from $b", a != b)

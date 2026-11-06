@@ -46,6 +46,7 @@ class FinalizeActivity : ComponentActivity() {
     @Inject lateinit var workManager: WorkManager
 
     private var batchId = -1L
+    private var itemId = -1L
     private var working by mutableStateOf(false)
 
     /** Set once a replace was refused for lack of approval, so we ask the user instead of trusting the checks that said yes. */
@@ -61,6 +62,7 @@ class FinalizeActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         batchId = intent.getLongExtra(EXTRA_BATCH, -1)
+        itemId = intent.getLongExtra(EXTRA_ITEM, -1)
         val action = intent.getStringExtra(EXTRA_ACTION)?.let { runCatching { FinalizeAction.valueOf(it) }.getOrNull() }
         if (batchId < 0 || action == null) {
             finish()
@@ -85,7 +87,7 @@ class FinalizeActivity : ComponentActivity() {
         when (action) {
             FinalizeAction.SHARE -> share()
             FinalizeAction.SAVE -> {
-                manager.save(batchId)
+                if (itemId >= 0) manager.saveItem(itemId) else manager.save(batchId)
                 finish()
             }
             FinalizeAction.REPLACE -> askThenReplace()
@@ -94,7 +96,7 @@ class FinalizeActivity : ComponentActivity() {
 
     private fun share() {
         lifecycleScope.launch {
-            val chooser = finalizer.shareIntent(batchId)
+            val chooser = if (itemId >= 0) finalizer.shareIntentItem(itemId) else finalizer.shareIntent(batchId)
             if (chooser == null) {
                 toastAndFinish(R.string.finalize_nothing)
             } else {
@@ -107,8 +109,8 @@ class FinalizeActivity : ComponentActivity() {
     private fun askThenReplace(trusted: Boolean = true) {
         lifecycleScope.launch {
             try {
-                val needed = finalizer.needsWriteConsent(batchId, trusted)
-                Log.d(TAG, "batch $batchId: ${needed.size} originals need approval (trusted=$trusted)")
+                val needed = if (itemId >= 0) finalizer.needsWriteConsentItem(itemId, trusted) else finalizer.needsWriteConsent(batchId, trusted)
+                Log.d(TAG, "batch $batchId item $itemId: ${needed.size} originals need approval (trusted=$trusted)")
                 if (needed.isEmpty()) runReplace() else writeConsent.launch(IntentSenderRequest.Builder(store.writeRequest(needed)).build())
             } catch (e: Exception) {
                 Log.e(TAG, "Could not ask for write access", e)
@@ -120,7 +122,7 @@ class FinalizeActivity : ComponentActivity() {
     private fun runReplace() {
         working = true
         lifecycleScope.launch {
-            val id = manager.replace(batchId)
+            val id = if (itemId >= 0) manager.replaceItem(itemId) else manager.replace(batchId)
             val info = workManager.getWorkInfoByIdFlow(id).first { it?.state?.isFinished == true }
             val toDelete = info?.outputData?.getStringArray(FinalizeWorker.KEY_ORIGINALS_TO_DELETE).orEmpty().map(Uri::parse)
             working = false
@@ -152,12 +154,19 @@ class FinalizeActivity : ComponentActivity() {
 
     companion object {
         private const val EXTRA_BATCH = "batch"
+        private const val EXTRA_ITEM = "item"
         private const val EXTRA_ACTION = "action"
         private const val TAG = "FinalizeActivity"
 
         fun intent(context: Context, batchId: Long, action: FinalizeAction) =
             Intent(context, FinalizeActivity::class.java)
                 .putExtra(EXTRA_BATCH, batchId)
+                .putExtra(EXTRA_ACTION, action.name)
+
+        /** Like [intent] but acting on a single video instead of its whole batch. */
+        fun itemIntent(context: Context, itemId: Long, action: FinalizeAction) =
+            Intent(context, FinalizeActivity::class.java)
+                .putExtra(EXTRA_ITEM, itemId)
                 .putExtra(EXTRA_ACTION, action.name)
     }
 }

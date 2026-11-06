@@ -47,14 +47,14 @@
     <string name="finalize_originals_removed">Originals removed.</string>
     <string name="finalize_originals_kept">Originals kept.</string>
     <string name="finalize_failed">Could not replace the originals.</string>
-    <string name="ready_title">Ready to use</string>
-    <string name="ready_summary">%1$s · %2$s</string>
     <string name="ready_reshare">Reshare</string>
     <string name="ready_replace">Replace originals</string>
     <string name="ready_save">Save copies</string>
     <string name="ready_discard">Discard</string>
     <string name="ready_discard_title">Discard compressed videos?</string>
     <string name="ready_discard_text">The compressed files are deleted. Your originals are not touched.</string>
+    <string name="history_item_replace">Replace original</string>
+    <string name="history_item_save_copy">Save copy</string>
     <string name="ready_save_started">Saving copies…</string>
     <string name="queue_pause">Pause</string>
     <string name="queue_resume">Resume</string>

@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -53,6 +54,22 @@ class HistoryRepositoryTest {
         assertEquals(listOf(failed), entries.map { it.batch.id })
         assertEquals("boom", entries.single().single?.error)
         assertEquals(1, db.batchItemDao().activeCount())
+    }
+
+    @Test
+    fun historyIsOrderedByFinishTimeAndFlagsPendingResults() = runBlocking {
+        val older = queue.enqueue(BatchSource.PICKER, BuiltInPresets.share, listOf(src("a")))
+        finish(older, ItemResult.Done("/x/a", 400, "cmd", 1000))
+        val newer = queue.enqueue(BatchSource.PICKER, BuiltInPresets.balanced, listOf(src("b")))
+        finish(newer, ItemResult.Done("/x/b", 400, "cmd", 1000))
+        // Force deterministic finish times; the results still wait for a decision.
+        db.batchDao().markFinished(older, BatchStatus.AWAITING_ACTION, 1_000)
+        db.batchDao().markFinished(newer, BatchStatus.AWAITING_ACTION, 2_000)
+
+        val entries = history.observeHistory().first()
+        assertEquals(listOf(newer, older), entries.map { it.batch.id }) // newest finish first
+        assertTrue(entries.all { it.hasPendingResults })
+        assertEquals(1, entries.first().pendingResults.size)
     }
 
     @Test

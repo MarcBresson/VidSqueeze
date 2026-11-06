@@ -1,7 +1,10 @@
 package app.squeeze.feature.history
 
+import android.content.Context
+import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.squeeze.R
 import app.squeeze.data.HistoryEntry
 import app.squeeze.data.HistoryRepository
 import app.squeeze.data.QueueRepository
@@ -15,6 +18,7 @@ import app.squeeze.work.QueueManager
 import app.squeeze.data.Stats
 import app.squeeze.data.StatsPeriod
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -28,6 +32,7 @@ import kotlinx.coroutines.withContext
 
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     repository: HistoryRepository,
     private val queue: QueueManager,
     private val finalize: FinalizeManager,
@@ -44,8 +49,24 @@ class HistoryViewModel @Inject constructor(
         onResume = queue::resume,
         onCancelAll = { queue.cancelAll() },
         onRemove = queue::remove,
-        onSaveCopies = { finalize.save(it) },
-        onDiscard = { finalize.discard(it) },
+    )
+
+    /** Batch-level actions on a batch's pending results, shown on the batch header. */
+    val batchActions = BatchResultActions(
+        onSaveCopies = { batchId ->
+            finalize.save(batchId)
+            toastSaving()
+        },
+        onDiscard = finalize::discard,
+    )
+
+    /** Item-level actions on one video's pending result, shown on the video's row. */
+    val itemActions = ItemResultActions(
+        onSaveCopy = { itemId ->
+            finalize.saveItem(itemId)
+            toastSaving()
+        },
+        onDiscard = finalize::discardItem,
     )
 
     /** Null until the first load, so the screen can tell "empty" from "loading". */
@@ -67,4 +88,12 @@ class HistoryViewModel @Inject constructor(
     fun setPeriod(period: StatsPeriod) {
         _period.value = period
     }
+
+    private fun toastSaving() = Toast.makeText(appContext, R.string.ready_save_started, Toast.LENGTH_SHORT).show()
 }
+
+/** Save and discard for a batch's remaining pending results (Reshare and Replace need an activity). */
+class BatchResultActions(val onSaveCopies: (Long) -> Unit, val onDiscard: (Long) -> Unit)
+
+/** Save and discard for one video's pending result (Reshare and Replace need an activity). */
+class ItemResultActions(val onSaveCopy: (Long) -> Unit, val onDiscard: (Long) -> Unit)

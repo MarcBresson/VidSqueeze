@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import androidx.core.content.FileProvider
+import androidx.core.net.toUri
 import app.squeeze.data.BatchItemEntity
 import app.squeeze.data.FinalizeState
 import app.squeeze.data.ItemStatus
@@ -33,6 +34,61 @@ class Finalizer @Inject constructor(
     private val store: MediaStoreWriter,
     private val engine: FfmpegKitEngine,
 ) {
+    /** Decides what happens to one staged result when replacing. */
+    private suspend fun replaceOf(item: BatchItemEntity, report: FinalizeReport): FinalizeReport = when (FinalizePlanner.replaceKind(item)) {
+        ReplaceKind.SAVE_COPY -> saveCopy(item, report)
+        ReplaceKind.IN_PLACE -> overwrite(item, report)
+        ReplaceKind.SWAP -> swap(item, report)
+    }
+
+    /** Saves one pending result as a copy next to its original. */
+    suspend fun saveCopyItem(itemId: Long): FinalizeReport = withContext(Dispatchers.IO) {
+        val item = pendingResult(itemId) ?: return@withContext FinalizeReport()
+        attempt(FinalizeReport(), item) { saveCopy(item, FinalizeReport()) }
+    }
+
+    /** Replaces the original of one pending result, saving it as a copy when it cannot be replaced. */
+    suspend fun replaceItem(itemId: Long): FinalizeReport = withContext(Dispatchers.IO) {
+        val item = pendingResult(itemId) ?: return@withContext FinalizeReport()
+        attempt(FinalizeReport(), item) { replaceOf(item, FinalizeReport()) }
+    }
+
+    /** Throws one pending result away. The original is untouched. */
+    suspend fun discardItem(itemId: Long) = withContext(Dispatchers.IO) {
+        val item = pendingResult(itemId) ?: return@withContext
+        item.stagedPath?.let { deleteStaged(File(it)) }
+        results.markFinalized(item, FinalizeState.DISCARDED, null)
+    }
+
+    /** A chooser that sends [itemId]'s result to another app; null when there is nothing to share. */
+    suspend fun shareIntentItem(itemId: Long): Intent? = withContext(Dispatchers.IO) {
+        val item = results.item(itemId) ?: return@withContext null
+        // The staged file while the result is pending, the saved/replaced video once it is finalized.
+        val pending = FinalizePlanner.pendingResult(item) != null
+        val staged = if (pending) item.stagedPath?.let(::File)?.takeIf(File::isFile) else null
+        val finalUri = if (!pending) item.finalUri?.toUri()?.takeIf { store.length(it) > 0 } else null
+        if (staged == null && finalUri == null) return@withContext null
+        val authority = "${context.packageName}.fileprovider"
+        val uri = staged?.let { FileProvider.getUriForFile(context, authority, it) } ?: finalUri!!
+        val send = Intent(Intent.ACTION_SEND).putExtra(Intent.EXTRA_STREAM, uri)
+        send.type = FinalizePlanner.mimeType(staged?.extension ?: item.displayName.substringAfterLast('.', "mp4"))
+        send.clipData = ClipData.newRawUri(null, uri)
+        send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        Intent.createChooser(send, null).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+
+    /** Originals the user has to approve before [replaceItem] may overwrite them. */
+    suspend fun needsWriteConsentItem(itemId: Long, trusted: Boolean = true): List<Uri> {
+        val item = results.item(itemId) ?: return emptyList()
+        if (FinalizePlanner.pendingResult(item) == null || FinalizePlanner.replaceKind(item) != ReplaceKind.IN_PLACE) return emptyList()
+        val uri = store.itemUri(item.mediaStoreId!!)
+        return listOf(uri).filterNot { store.hasWriteAccess(it, trusted) }
+    }
+
+    /** The DONE item with a staged result still waiting for a decision, or null. */
+    private suspend fun pendingResult(itemId: Long): BatchItemEntity? =
+        results.item(itemId)?.let(FinalizePlanner::pendingResult)
+
     suspend fun plan(batchId: Long): ReplacePlan = FinalizePlanner.replacePlan(results.items(batchId))
 
     /**
@@ -47,9 +103,7 @@ class Finalizer @Inject constructor(
     /** Adds every pending result to the gallery as a new video, next to its original. */
     suspend fun saveCopies(batchId: Long): FinalizeReport = withContext(Dispatchers.IO) {
         var report = FinalizeReport()
-        for (item in results.pending(batchId)) {
-            report = attempt(report, item) { saveCopy(item, report) }
-        }
+        for (item in results.pending(batchId)) report += saveCopyItem(item.id)
         report
     }
 
@@ -60,15 +114,7 @@ class Finalizer @Inject constructor(
      */
     suspend fun replace(batchId: Long): FinalizeReport = withContext(Dispatchers.IO) {
         var report = FinalizeReport()
-        for ((item, kind) in plan(batchId).items) {
-            report = attempt(report, item) {
-                when (kind) {
-                    ReplaceKind.SAVE_COPY -> saveCopy(item, report)
-                    ReplaceKind.IN_PLACE -> overwrite(item, report)
-                    ReplaceKind.SWAP -> swap(item, report)
-                }
-            }
-        }
+        for ((item, _) in plan(batchId).items) report += replaceItem(item.id)
         report
     }
 
@@ -184,10 +230,7 @@ class Finalizer @Inject constructor(
 
     /** Throws the pending results of [batchId] away. The originals are untouched. */
     suspend fun discard(batchId: Long) = withContext(Dispatchers.IO) {
-        for (item in results.pending(batchId)) {
-            item.stagedPath?.let { deleteStaged(File(it)) }
-            results.markFinalized(item, FinalizeState.DISCARDED, null)
-        }
+        results.pending(batchId).forEach { discardItem(it.id) }
     }
 
     /** Discards results that waited longer than [maxAgeMs]. Returns the batches cleaned. */

@@ -22,6 +22,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Compare
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -62,6 +67,9 @@ import app.squeeze.data.StatTotals
 import app.squeeze.data.StatsPeriod
 import app.squeeze.feature.home.Reduction
 import app.squeeze.feature.queue.activeJobs
+import app.squeeze.finalize.FinalizeAction
+import app.squeeze.finalize.FinalizeActivity
+import app.squeeze.ui.IconAction
 import app.squeeze.ui.Pill
 import app.squeeze.ui.media.PlayButton
 import app.squeeze.ui.media.VideoRef
@@ -112,7 +120,7 @@ private fun HistoryList(vm: HistoryViewModel, onCompare: (Long) -> Unit) {
     val jobs by vm.jobs.collectAsStateWithLifecycle()
     var logsOf by rememberSaveable { mutableStateOf<Long?>(null) }
     val entries = history ?: return
-    if (entries.isEmpty() && jobs.items.isEmpty() && jobs.ready.isEmpty()) {
+    if (entries.isEmpty() && jobs.items.isEmpty()) {
         Text(stringResource(R.string.history_empty), modifier = Modifier.padding(16.dp))
         return
     }
@@ -121,28 +129,37 @@ private fun HistoryList(vm: HistoryViewModel, onCompare: (Long) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         activeJobs(jobs, vm.jobActions)
-        items(entries, key = { it.batch.id }) { entry -> HistoryCard(entry, vm::hasLog, onCompare) { logsOf = it } }
+        items(entries, key = { it.batch.id }) { entry ->
+            HistoryCard(entry, vm::hasLog, vm.batchActions, vm.itemActions, onCompare) { logsOf = it }
+        }
     }
     logsOf?.let { LogSheet(it, vm, onDismiss = { logsOf = null }) }
 }
 
 @Composable
-private fun HistoryCard(entry: HistoryEntry, hasLog: (Long) -> Boolean, onCompare: (Long) -> Unit, onShowLogs: (Long) -> Unit) {
+private fun HistoryCard(
+    entry: HistoryEntry,
+    hasLog: (Long) -> Boolean,
+    batchActions: BatchResultActions,
+    itemActions: ItemResultActions,
+    onCompare: (Long) -> Unit,
+    onShowLogs: (Long) -> Unit,
+) {
     val single = entry.single
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (single != null) {
-                ItemBlock(single, entry.batch.presetName, hasLog, onCompare, onShowLogs)
+                ItemBlock(single, entry.batch.presetName, hasLog, itemActions, onCompare, onShowLogs, alwaysActions = true)
             } else {
-                BatchHeader(entry)
-                entry.items.forEach { ItemBlock(it, presetName = null, hasLog, onCompare, onShowLogs) }
+                BatchHeader(entry, batchActions)
+                entry.items.forEach { ItemBlock(it, presetName = null, hasLog, itemActions, onCompare, onShowLogs, alwaysActions = false) }
             }
         }
     }
 }
 
 @Composable
-private fun BatchHeader(entry: HistoryEntry) {
+private fun BatchHeader(entry: HistoryEntry, batchActions: BatchResultActions) {
     val context = LocalContext.current
     val summary = entry.summary
     Text(
@@ -167,6 +184,26 @@ private fun BatchHeader(entry: HistoryEntry) {
             style = MaterialTheme.typography.bodySmall,
         )
     }
+    if (entry.hasPendingResults) {
+        var confirmDiscard by rememberSaveable(entry.batch.id) { mutableStateOf(false) }
+        ResultActionsRow(
+            expanded = false,
+            reshareLabel = stringResource(R.string.ready_reshare),
+            replaceLabel = stringResource(R.string.ready_replace),
+            saveLabel = stringResource(R.string.ready_save),
+            discardLabel = stringResource(R.string.ready_discard),
+            onReshare = { context.startActivity(FinalizeActivity.intent(context, entry.batch.id, FinalizeAction.SHARE)) },
+            onReplace = { context.startActivity(FinalizeActivity.intent(context, entry.batch.id, FinalizeAction.REPLACE)) },
+            onSave = { batchActions.onSaveCopies(entry.batch.id) },
+            onDiscard = { confirmDiscard = true },
+        )
+        if (confirmDiscard) {
+            DiscardDialog(
+                onDismiss = { confirmDiscard = false },
+                onConfirm = { confirmDiscard = false; batchActions.onDiscard(entry.batch.id) },
+            )
+        }
+    }
 }
 
 /**
@@ -174,7 +211,15 @@ private fun BatchHeader(entry: HistoryEntry) {
  * Tap the row for the preset, finish time, outcome, error and the logs.
  */
 @Composable
-private fun ItemBlock(item: BatchItemEntity, presetName: String?, hasLog: (Long) -> Boolean, onCompare: (Long) -> Unit, onShowLogs: (Long) -> Unit) {
+private fun ItemBlock(
+    item: BatchItemEntity,
+    presetName: String?,
+    hasLog: (Long) -> Boolean,
+    itemActions: ItemResultActions,
+    onCompare: (Long) -> Unit,
+    onShowLogs: (Long) -> Unit,
+    alwaysActions: Boolean,
+) {
     val context = LocalContext.current
     var open by rememberSaveable(item.id) { mutableStateOf(false) }
     val result = remember(item.id, item.status, item.finalUri, item.stagedPath) { resultVideo(context, item) }
@@ -195,6 +240,12 @@ private fun ItemBlock(item: BatchItemEntity, presetName: String?, hasLog: (Long)
                     }
                 }
                 result?.let { PlayButton(it, Modifier.padding(start = 2.dp)) }
+                // A finished video can be sent on again, whatever was decided about its result.
+                if (result != null && item.finalizeState != FinalizeState.PENDING) {
+                    IconButton(onClick = { context.startActivity(FinalizeActivity.itemIntent(context, item.id, FinalizeAction.SHARE)) }) {
+                        Icon(Icons.Outlined.Share, contentDescription = stringResource(R.string.ready_reshare))
+                    }
+                }
             }
             val compressedAt = item.finishedAt
             // A lone video has no batch header, so its preset and date ride on the sizes line.
@@ -204,6 +255,27 @@ private fun ItemBlock(item: BatchItemEntity, presetName: String?, hasLog: (Long)
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            val isPending = item.status == ItemStatus.DONE && item.finalizeState == FinalizeState.PENDING && item.stagedPath != null
+            if (isPending && (alwaysActions || open)) {
+                var confirmDiscard by rememberSaveable(item.id) { mutableStateOf(false) }
+                ResultActionsRow(
+                    expanded = open,
+                    reshareLabel = stringResource(R.string.ready_reshare),
+                    replaceLabel = stringResource(R.string.history_item_replace),
+                    saveLabel = stringResource(R.string.history_item_save_copy),
+                    discardLabel = stringResource(R.string.ready_discard),
+                    onReshare = { context.startActivity(FinalizeActivity.itemIntent(context, item.id, FinalizeAction.SHARE)) },
+                    onReplace = { context.startActivity(FinalizeActivity.itemIntent(context, item.id, FinalizeAction.REPLACE)) },
+                    onSave = { itemActions.onSaveCopy(item.id) },
+                    onDiscard = { confirmDiscard = true },
+                )
+                if (confirmDiscard) {
+                    DiscardDialog(
+                        onDismiss = { confirmDiscard = false },
+                        onConfirm = { confirmDiscard = false; itemActions.onDiscard(item.id) },
+                    )
+                }
+            }
             if (open) {
                 if (presetName == null && compressedAt != null) {
                     Text(stringResource(R.string.history_finished_at, formatDateTime(compressedAt)), style = MaterialTheme.typography.bodySmall)
@@ -218,6 +290,40 @@ private fun ItemBlock(item: BatchItemEntity, presetName: String?, hasLog: (Long)
             }
         }
     }
+}
+
+/** The four result actions. Icons only unless [expanded], then icon + text. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ResultActionsRow(
+    expanded: Boolean,
+    reshareLabel: String,
+    replaceLabel: String,
+    saveLabel: String,
+    discardLabel: String,
+    onReshare: () -> Unit,
+    onReplace: () -> Unit,
+    onSave: () -> Unit,
+    onDiscard: () -> Unit,
+) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        IconAction(Icons.Outlined.Share, reshareLabel, onReshare, showLabel = expanded)
+        IconAction(Icons.Outlined.SwapHoriz, replaceLabel, onReplace, showLabel = expanded, tint = MaterialTheme.colorScheme.primary)
+        IconAction(Icons.Outlined.FileDownload, saveLabel, onSave, showLabel = expanded)
+        IconAction(Icons.Outlined.Delete, discardLabel, onDiscard, showLabel = expanded, tint = MaterialTheme.colorScheme.error)
+    }
+}
+
+/** The destructive-confirm dialog a Discard button shows first. */
+@Composable
+private fun DiscardDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.ready_discard_title)) },
+        text = { Text(stringResource(R.string.ready_discard_text)) },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.ready_discard)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) } },
+    )
 }
 
 /** "−96%" for a finished item, "Failed" for a failure, nothing otherwise. */

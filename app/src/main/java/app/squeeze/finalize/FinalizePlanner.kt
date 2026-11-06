@@ -32,9 +32,13 @@ object FinalizePlanner {
         items.filter { it.status == ItemStatus.DONE && it.finalizeState == FinalizeState.PENDING && it.stagedPath != null }
 
     fun replacePlan(items: List<BatchItemEntity>): ReplacePlan =
-        ReplacePlan(pending(items).map { it to kindFor(it) })
+        ReplacePlan(pending(items).map { it to replaceKind(it) })
 
-    private fun kindFor(item: BatchItemEntity): ReplaceKind {
+    /** The pending [item]'s staged result and the kind of replace it needs. */
+    fun pendingResult(item: BatchItemEntity): BatchItemEntity? =
+        item.takeIf { it.status == ItemStatus.DONE && it.finalizeState == FinalizeState.PENDING && it.stagedPath != null }
+
+    fun replaceKind(item: BatchItemEntity): ReplaceKind {
         if (item.isImported || item.mediaStoreId == null) return ReplaceKind.SAVE_COPY
         val stagedExtension = item.stagedPath?.substringAfterLast('.', "").orEmpty()
         return if (sameContainer(item.displayName, stagedExtension)) ReplaceKind.IN_PLACE else ReplaceKind.SWAP
@@ -113,6 +117,16 @@ data class FinalizeReport(
     val handled get() = replaced + savedAsCopy
     val savedBytes get() = (originalBytes - outputBytes).coerceAtLeast(0)
     val hasLeftovers get() = needsConsent > 0 || failures.isNotEmpty()
+
+    operator fun plus(other: FinalizeReport) = copy(
+        replaced = replaced + other.replaced,
+        savedAsCopy = savedAsCopy + other.savedAsCopy,
+        needsConsent = needsConsent + other.needsConsent,
+        failures = failures + other.failures,
+        originalBytes = originalBytes + other.originalBytes,
+        outputBytes = outputBytes + other.outputBytes,
+        originalsToDelete = originalsToDelete + other.originalsToDelete,
+    )
 }
 
 /** What [Finalizer.validateReplacement] did for one saved copy. */
