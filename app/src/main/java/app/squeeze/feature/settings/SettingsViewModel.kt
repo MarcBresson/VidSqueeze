@@ -32,6 +32,8 @@ data class SettingsUi(
     val presets: List<Preset> = emptyList(),
     /** Bytes of compressed results (and leftovers) in the app's staging folder; null while measuring. */
     val stagingBytes: Long? = null,
+    /** MB boundaries of the size chips in History's filters. */
+    val sizeBuckets: List<Long> = listOf(50, 500),
 )
 
 @HiltViewModel
@@ -48,6 +50,7 @@ class SettingsViewModel @Inject constructor(
     val ui: StateFlow<SettingsUi> = combine(
         settings.themeMode, settings.dynamicColor, settings.stagedRetentionDays,
         settings.defaultPresetId, presets.observeAll(), staging, settings.replaceKeepsOriginalName,
+        settings.sizeFilterBucketsMb,
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         SettingsUi(
@@ -58,6 +61,7 @@ class SettingsViewModel @Inject constructor(
             presets = values[4] as List<Preset>,
             stagingBytes = values[5] as Long?,
             replaceKeepsOriginalName = values[6] as Boolean,
+            sizeBuckets = values[7] as List<Long>,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUi())
 
@@ -74,6 +78,8 @@ class SettingsViewModel @Inject constructor(
     fun setReplaceKeepsOriginalName(on: Boolean) = viewModelScope.launch { settings.setReplaceKeepsOriginalName(on) }
 
     fun setDefaultPreset(id: String) = viewModelScope.launch { settings.setDefaultPreset(id) }
+
+    fun setSizeBuckets(values: List<Long>) = viewModelScope.launch { settings.setSizeFilterBucketsMb(values) }
 
     /** Throws away every compressed result nobody used yet. Originals are not touched. */
     fun clearStaging() {

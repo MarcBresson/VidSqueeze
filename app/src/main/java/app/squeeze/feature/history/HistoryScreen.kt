@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -22,18 +23,28 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Compare
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.FilterAlt
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -56,6 +67,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
@@ -96,14 +108,41 @@ fun HistoryScreen(
 ) {
     val pagerState = rememberPagerState { 2 }
     val scope = rememberCoroutineScope()
+    val filters by vm.filters.collectAsStateWithLifecycle()
+    val buckets by vm.sizeBuckets.collectAsStateWithLifecycle()
+    var sheetOpen by rememberSaveable { mutableStateOf(false) }
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.history_title)) },
+                actions = {
+                    IconButton(onClick = { sheetOpen = true }) {
+                        BadgedBox(
+                            badge = {
+                                val count = filters.activeCategoryCount()
+                                if (count > 0) Badge { Text(count.toString()) }
+                            },
+                        ) {
+                            Icon(Icons.Outlined.FilterAlt, contentDescription = stringResource(R.string.history_filters_title))
+                        }
+                    }
+                },
             )
         },
     ) { padding ->
+        if (sheetOpen) {
+            ModalBottomSheet(onDismissRequest = { if (sheetOpen) sheetOpen = false }) {
+                FilterSheet(
+                    filters = filters,
+                    buckets = buckets,
+                    onFilters = vm::setFilters,
+                    onStatus = vm::setStatus,
+                    onPending = vm::setPendingChip,
+                    onClear = vm::clearFilters,
+                )
+            }
+        }
         Column(Modifier.padding(padding)) {
             SecondaryTabRow(selectedTabIndex = pagerState.currentPage) {
                 Tab(
@@ -126,20 +165,33 @@ fun HistoryScreen(
 
 @Composable
 private fun HistoryList(vm: HistoryViewModel, target: Long?, onTargetConsumed: () -> Unit, onCompare: (Long) -> Unit) {
-    val history by vm.history.collectAsStateWithLifecycle()
-    val jobs by vm.jobs.collectAsStateWithLifecycle()
+    val history by vm.filteredHistory.collectAsStateWithLifecycle()
+    val jobs by vm.filteredJobs.collectAsStateWithLifecycle()
+    val filters by vm.filters.collectAsStateWithLifecycle()
+    val missing by vm.missing.collectAsStateWithLifecycle()
     var logsOf by rememberSaveable { mutableStateOf<Long?>(null) }
     val listState = rememberLazyListState()
     var highlightedBatch by rememberSaveable { mutableStateOf<Long?>(null) }
     val entries = history ?: return
     if (entries.isEmpty() && jobs.items.isEmpty()) {
-        Text(stringResource(R.string.history_empty), modifier = Modifier.padding(16.dp))
+        if (filters.isEmpty) {
+            Text(stringResource(R.string.history_empty), modifier = Modifier.padding(16.dp))
+        } else {
+            EmptyFilterResult(onClear = vm::clearFilters)
+        }
         return
     }
     LaunchedEffect(target, entries) {
         if (target == null) return@LaunchedEffect
         val entryIndex = entries.indexOfFirst { it.batch.id == target }
-        if (entryIndex < 0) return@LaunchedEffect // batch not in this list (yet): give up silently
+        if (entryIndex < 0) {
+            // A deep-linked batch hidden by the active filters: clear them so it becomes visible.
+            if (!filters.isEmpty) {
+                vm.clearFilters()
+                return@LaunchedEffect
+            }
+            return@LaunchedEffect // batch not in this list (yet): give up silently
+        }
         // The list starts with the active-jobs section: a controls row plus one row per job.
         val jobsHeader = if (jobs.items.isEmpty()) 0 else 1 + jobs.items.size
         listState.scrollToItem(jobsHeader + entryIndex)
@@ -157,6 +209,7 @@ private fun HistoryList(vm: HistoryViewModel, target: Long?, onTargetConsumed: (
         items(entries, key = { it.batch.id }) { entry ->
             HistoryCard(
                 entry,
+                missing,
                 vm::hasLog,
                 vm.batchActions,
                 vm.itemActions,
@@ -173,6 +226,7 @@ private fun HistoryList(vm: HistoryViewModel, target: Long?, onTargetConsumed: (
 @Composable
 private fun HistoryCard(
     entry: HistoryEntry,
+    missing: Map<Long, Boolean>,
     hasLog: (Long) -> Boolean,
     batchActions: BatchResultActions,
     itemActions: ItemResultActions,
@@ -191,10 +245,10 @@ private fun HistoryCard(
     ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (single != null) {
-                ItemBlock(single, entry.batch.presetName, hasLog, itemActions, onCompare, onShowLogs, alwaysActions = true, initiallyOpen = expandItem)
+                ItemBlock(single, entry.batch.presetName, missing, hasLog, itemActions, onCompare, onShowLogs, alwaysActions = true, initiallyOpen = expandItem)
             } else {
                 BatchHeader(entry, batchActions)
-                entry.items.forEach { ItemBlock(it, presetName = null, hasLog, itemActions, onCompare, onShowLogs, alwaysActions = false) }
+                entry.items.forEach { ItemBlock(it, presetName = null, missing, hasLog, itemActions, onCompare, onShowLogs, alwaysActions = false) }
             }
         }
     }
@@ -256,6 +310,7 @@ private fun BatchHeader(entry: HistoryEntry, batchActions: BatchResultActions) {
 private fun ItemBlock(
     item: BatchItemEntity,
     presetName: String?,
+    missing: Map<Long, Boolean>,
     hasLog: (Long) -> Boolean,
     itemActions: ItemResultActions,
     onCompare: (Long) -> Unit,
@@ -276,6 +331,13 @@ private fun ItemBlock(
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(item.displayName, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
+                if (missing[item.id] == true) {
+                    Pill(
+                        stringResource(R.string.history_item_missing),
+                        MaterialTheme.colorScheme.errorContainer,
+                        MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                }
                 OutcomePill(item)
                 if (canCompare(item)) {
                     IconButton(onClick = { onCompare(item.id) }, Modifier.padding(start = 2.dp)) {
@@ -433,22 +495,17 @@ private fun formatShortDateTime(epochMs: Long): String =
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StatsPane(vm: HistoryViewModel) {
-    val period by vm.period.collectAsStateWithLifecycle()
     val stats by vm.stats.collectAsStateWithLifecycle()
+    val filters by vm.filters.collectAsStateWithLifecycle()
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        item(key = "period") {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatsPeriod.entries.forEach { p ->
-                    FilterChip(selected = p == period, onClick = { vm.setPeriod(p) }, label = { Text(stringResource(periodLabel(p))) })
-                }
-            }
-        }
         val current = stats ?: return@LazyColumn
         if (current.total.videos == 0) {
-            item(key = "empty") { Text(stringResource(R.string.stats_empty)) }
+            item(key = "empty") {
+                if (filters.isEmpty) Text(stringResource(R.string.stats_empty)) else EmptyFilterResult(onClear = vm::clearFilters)
+            }
             return@LazyColumn
         }
         item(key = "total") { StatsCard(stringResource(R.string.stats_all_presets), current.total) }
@@ -486,5 +543,186 @@ private fun StatsCard(title: String, totals: StatTotals) {
                 Text(stringResource(R.string.stats_freed, size(totals.freedBytes)), style = MaterialTheme.typography.bodySmall)
             }
         }
+    }
+}
+
+/** MB in bytes, for sizing the filter chip labels with [Formatter.formatShortFileSize]. */
+private const val MB = 1024L * 1024
+
+/** The History filter sheet: one single-select chip group per category, applied live. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FilterSheet(
+    filters: HistoryFilters,
+    buckets: List<Long>,
+    onFilters: (HistoryFilters) -> Unit,
+    onStatus: (VideoStatusFilter?) -> Unit,
+    onPending: (Boolean) -> Unit,
+    onClear: () -> Unit,
+) {
+    val context = LocalContext.current
+    Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                stringResource(R.string.history_filters_title),
+                Modifier.weight(1f),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            TextButton(onClick = onClear) { Text(stringResource(R.string.history_filters_clear_all)) }
+        }
+
+        Text(stringResource(R.string.history_filters_size), style = MaterialTheme.typography.titleSmall)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            buckets.indices.forEach { index ->
+                FilterChip(
+                    selected = filters.sizeBucketIndex == index,
+                    onClick = { onFilters(filters.copy(sizeBucketIndex = if (filters.sizeBucketIndex == index) null else index)) },
+                    label = { Text(sizeChipLabel(context, index, buckets)) },
+                )
+            }
+            FilterChip(
+                selected = filters.sizeBucketIndex == HistoryFilters.CUSTOM_INDEX,
+                onClick = {
+                    onFilters(
+                        filters.copy(
+                            sizeBucketIndex = if (filters.sizeBucketIndex == HistoryFilters.CUSTOM_INDEX) null else HistoryFilters.CUSTOM_INDEX,
+                        ),
+                    )
+                },
+                label = { Text(stringResource(R.string.history_filters_size_custom)) },
+            )
+        }
+        if (filters.sizeBucketIndex == HistoryFilters.CUSTOM_INDEX) {
+            var minText by rememberSaveable { mutableStateOf(filters.customSizeMinMb?.toString().orEmpty()) }
+            var maxText by rememberSaveable { mutableStateOf(filters.customSizeMaxMb?.toString().orEmpty()) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = minText,
+                    onValueChange = {
+                        minText = it
+                        onFilters(filters.copy(customSizeMinMb = it.toLongOrNull()))
+                    },
+                    label = { Text(stringResource(R.string.history_filters_size_min)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    value = maxText,
+                    onValueChange = {
+                        maxText = it
+                        onFilters(filters.copy(customSizeMaxMb = it.toLongOrNull()))
+                    },
+                    label = { Text(stringResource(R.string.history_filters_size_max)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+
+        Text(stringResource(R.string.history_filters_status), style = MaterialTheme.typography.titleSmall)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            VideoStatusFilter.entries.forEach { status ->
+                FilterChip(
+                    selected = filters.status == status,
+                    onClick = { onStatus(if (filters.status == status) null else status) },
+                    label = {
+                        Text(
+                            stringResource(
+                                when (status) {
+                                    VideoStatusFilter.AWAITING_ACTION -> R.string.history_filters_status_awaiting
+                                    VideoStatusFilter.FAILED -> R.string.history_filters_status_failed
+                                    VideoStatusFilter.DONE -> R.string.history_filters_status_done
+                                    VideoStatusFilter.CANCELLED -> R.string.history_filters_status_cancelled
+                                },
+                            ),
+                        )
+                    },
+                )
+            }
+        }
+
+        FilterChip(
+            selected = filters.onlyPending,
+            onClick = { onPending(!filters.onlyPending) },
+            label = { Text(stringResource(R.string.history_filters_pending)) },
+        )
+
+        Text(stringResource(R.string.history_filters_date), style = MaterialTheme.typography.titleSmall)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = filters.dateKind == DateFilterKind.ALL,
+                onClick = { onFilters(filters.copy(dateKind = DateFilterKind.ALL)) },
+                label = { Text(stringResource(R.string.stats_period_all)) },
+            )
+            FilterChip(
+                selected = filters.dateKind == DateFilterKind.WEEK,
+                onClick = { onFilters(filters.copy(dateKind = DateFilterKind.WEEK)) },
+                label = { Text(stringResource(R.string.stats_period_week)) },
+            )
+            FilterChip(
+                selected = filters.dateKind == DateFilterKind.MONTH,
+                onClick = { onFilters(filters.copy(dateKind = DateFilterKind.MONTH)) },
+                label = { Text(stringResource(R.string.stats_period_month)) },
+            )
+            FilterChip(
+                selected = filters.dateKind == DateFilterKind.YEAR,
+                onClick = { onFilters(filters.copy(dateKind = DateFilterKind.YEAR)) },
+                label = { Text(stringResource(R.string.stats_period_year)) },
+            )
+            FilterChip(
+                selected = filters.dateKind == DateFilterKind.RANGE,
+                onClick = { onFilters(filters.copy(dateKind = DateFilterKind.RANGE)) },
+                label = { Text(stringResource(R.string.history_filters_date_range)) },
+            )
+        }
+        if (filters.dateKind == DateFilterKind.RANGE) {
+            val rangeState = rememberDateRangePickerState(
+                initialSelectedStartDateMillis = filters.dateStartMs,
+                initialSelectedEndDateMillis = filters.dateEndMs,
+            )
+            TextButton(
+                onClick = {
+                    onFilters(
+                        filters.copy(
+                            dateStartMs = rangeState.selectedStartDateMillis,
+                            dateEndMs = rangeState.selectedEndDateMillis?.let(::endOfDayMs),
+                        ),
+                    )
+                },
+            ) { Text(stringResource(R.string.history_filters_date_apply)) }
+            DateRangePicker(state = rangeState, modifier = Modifier.fillMaxWidth().height(500.dp))
+        }
+
+        FilterChip(
+            selected = filters.missingOnly,
+            onClick = { onFilters(filters.copy(missingOnly = !filters.missingOnly)) },
+            label = { Text(stringResource(R.string.history_filters_missing)) },
+        )
+    }
+}
+
+/** "under 50 MB" / "50 MB to 500 MB" / "over 500 MB", formatted for the user's locale. */
+private fun sizeChipLabel(context: Context, index: Int, buckets: List<Long>): String {
+    val (minMb, maxMb) = HistoryFilter.sizeLabelRange(index, buckets)
+    val min = minMb?.let { Formatter.formatShortFileSize(context, it * MB) }
+    val max = maxMb?.let { Formatter.formatShortFileSize(context, it * MB) }
+    return when {
+        min == null -> "< $max"
+        max == null -> "> $min"
+        else -> "$min \u2013 $max"
+    }
+}
+
+/** The day of [epochMs] at 23:59:59.999 local time, so a picked end date is inclusive. */
+private fun endOfDayMs(epochMs: Long): Long =
+    java.time.Instant.ofEpochMilli(epochMs).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+        .atTime(23, 59, 59, 999_000_000).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+/** Shown when filters are active but nothing matches: the message plus the way out. */
+@Composable
+private fun EmptyFilterResult(onClear: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(stringResource(R.string.history_filters_empty), Modifier.padding(bottom = 8.dp))
+        OutlinedButton(onClick = onClear) { Text(stringResource(R.string.history_filters_clear)) }
     }
 }

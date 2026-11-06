@@ -49,6 +49,7 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
     private val replaceKeepsNameKey = booleanPreferencesKey("replace_keeps_original_name")
     private val onboardingKey = booleanPreferencesKey("onboarding_done")
     private val autoPromoDismissedKey = booleanPreferencesKey("auto_promo_dismissed")
+    private val sizeBucketsKey = stringPreferencesKey("size_filter_buckets_mb")
 
     /** The preset the share flow starts from when "last used" is unknown. */
     val defaultPresetId: Flow<String> = context.dataStore.data.map { it[defaultPresetKey] ?: BuiltInPresets.SHARE_ID }
@@ -74,6 +75,9 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
 
     /** True once the user closed the Home card that offers to turn on auto compression. */
     val autoPromoDismissed: Flow<Boolean> = context.dataStore.data.map { it[autoPromoDismissedKey] ?: false }
+
+    /** MB boundaries of the size chips in History's filters, e.g. [50, 500] for under-50 / 50-500 / over-500. */
+    val sizeFilterBucketsMb: Flow<List<Long>> = context.dataStore.data.map { normalizeBuckets(it[sizeBucketsKey]) }
 
     suspend fun setThemeMode(mode: ThemeMode) {
         context.dataStore.edit { it[themeKey] = mode.name }
@@ -105,6 +109,21 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
 
     suspend fun setLastUsedPreset(id: String) {
         context.dataStore.edit { it[lastUsedPresetKey] = id }
+    }
+
+    suspend fun setSizeFilterBucketsMb(values: List<Long>) {
+        context.dataStore.edit { it[sizeBucketsKey] = values.filter { mb -> mb > 0 }.distinct().sorted().joinToString(",") }
+    }
+
+    /** Invalid, unparseable or empty stored values self-heal to the default 50, 500. */
+    private fun normalizeBuckets(stored: String?): List<Long> {
+        if (stored == null) return DEFAULT_BUCKETS_MB
+        val parsed = stored.split(",").mapNotNull { it.trim().toLongOrNull() }.filter { it > 0 }.distinct().sorted()
+        return parsed.ifEmpty { DEFAULT_BUCKETS_MB }
+    }
+
+    private companion object {
+        val DEFAULT_BUCKETS_MB = listOf(50L, 500L)
     }
 
     /** What the compression sheet opens with: last used, else the default. */

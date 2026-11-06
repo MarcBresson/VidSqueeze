@@ -17,4 +17,7 @@ class HistoryRepository @Inject constructor(
 
     fun observeStats(period: StatsPeriod, now: () -> Long = System::currentTimeMillis): Flow<Stats> =
         items.observeStatRows(period.since(now())).map { StatsCalculator.compute(it, period, now()) }
+
+    /** Every compressed video as a stat row, no period cut — for in-memory filtering. */
+    fun observeStatRows(): Flow<List<StatRow>> = items.observeStatRows(0)
 }
