@@ -474,10 +474,12 @@ private fun resultVideo(context: Context, item: BatchItemEntity): VideoRef? {
     return VideoRef.staged(context, staged)
 }
 
-/** A saved copy of a library video can be compared with its original, and replace it. */
-private fun canCompare(item: BatchItemEntity): Boolean =
-    item.status == ItemStatus.DONE && item.finalizeState == FinalizeState.SAVED && item.finalUri != null &&
-        item.mediaStoreId != null && !item.isImported
+/** A saved copy of a library video can be compared with its original, and so can any result still waiting for a decision. */
+internal fun canCompare(item: BatchItemEntity): Boolean = item.status == ItemStatus.DONE && (
+    (item.finalizeState == FinalizeState.SAVED && item.finalUri != null && item.mediaStoreId != null && !item.isImported) ||
+        // The staged file is the compressed pane; the original is still in place while the item awaits a decision.
+        (item.finalizeState == FinalizeState.PENDING && item.stagedPath != null)
+    )
 
 /** Statuses done with the queue, whether or not compression succeeded. */
 private val FINISHED_STATUSES = setOf(ItemStatus.DONE, ItemStatus.FAILED, ItemStatus.SKIPPED_NO_GAIN, ItemStatus.CANCELLED)

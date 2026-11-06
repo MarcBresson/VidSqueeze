@@ -102,8 +102,10 @@ fun CompareScreen(onBack: () -> Unit, vm: CompareViewModel = hiltViewModel()) {
                             ) + (saved?.let { " · −$it%" } ?: ""),
                             style = MaterialTheme.typography.bodyMedium,
                         )
-                        Button(onClick = { confirm = true }, enabled = !state.replacing, modifier = Modifier.fillMaxWidth()) {
-                            Text(stringResource(R.string.compare_replace))
+                        if (state.canReplace) {
+                            Button(onClick = { confirm = true }, enabled = !state.replacing, modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(R.string.compare_replace))
+                            }
                         }
                     }
                 }

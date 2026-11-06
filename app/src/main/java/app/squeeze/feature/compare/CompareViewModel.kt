@@ -1,5 +1,6 @@
 package app.squeeze.feature.compare
 
+import android.content.Context
 import android.content.IntentSender
 import androidx.core.net.toUri
 import androidx.lifecycle.SavedStateHandle
@@ -15,6 +16,8 @@ import app.squeeze.finalize.MediaStoreWriter
 import app.squeeze.finalize.ReplaceAfterSaveResult
 import app.squeeze.ui.media.VideoRef
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -40,6 +43,8 @@ sealed interface CompareUi {
         /** The file name the compressed video will have once it replaces the original. */
         val finalName: String,
         val replacing: Boolean = false,
+        /** False while the result is still staged: the row's own actions handle replacing then. */
+        val canReplace: Boolean = true,
     ) : CompareUi
 }
 
@@ -49,9 +54,10 @@ sealed interface CompareEvent {
     data object Failed : CompareEvent
 }
 
-/** Loads one saved result of the history for [CompareScreen] and runs "replace the original" on it. */
+/** Loads one result of the history for [CompareScreen] — a saved copy or one still awaiting a decision — and runs "replace the original" on saved copies. */
 @HiltViewModel
 class CompareViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     savedState: SavedStateHandle,
     private val results: ResultsRepository,
     private val finalizer: Finalizer,
@@ -74,24 +80,39 @@ class CompareViewModel @Inject constructor(
         viewModelScope.launch {
             _ui.value = withContext(Dispatchers.IO) {
                 val item = results.item(itemId)
-                val copy = item?.finalUri?.toUri()
                 val original = item?.sourceUri?.toUri()
-                if (item == null || copy == null || original == null ||
-                    item.status != ItemStatus.DONE || item.finalizeState != FinalizeState.SAVED ||
-                    item.isImported || item.mediaStoreId == null ||
-                    store.length(copy) <= 0 || store.length(original) <= 0
-                ) {
-                    CompareUi.Unavailable
-                } else {
-                    val keep = settings.replaceKeepsOriginalName.first()
-                    CompareUi.Ready(
-                        name = item.displayName,
-                        original = VideoRef(original),
-                        compressed = VideoRef(copy),
-                        originalSize = item.originalSize,
-                        compressedSize = item.outputSize ?: store.length(copy),
-                        finalName = FinalizePlanner.replacementName(item.displayName, store.displayName(copy) ?: item.displayName, keep),
-                    )
+                when {
+                    item == null || original == null || item.status != ItemStatus.DONE || store.length(original) <= 0 ->
+                        CompareUi.Unavailable
+                    // A result still waiting for a decision: the staged file plays the compressed pane.
+                    item.finalizeState == FinalizeState.PENDING -> item.stagedPath?.let(::File)?.takeIf(File::isFile)?.let { staged ->
+                        CompareUi.Ready(
+                            name = item.displayName,
+                            original = VideoRef(original),
+                            compressed = VideoRef.staged(context, staged),
+                            originalSize = item.originalSize,
+                            compressedSize = item.outputSize ?: staged.length(),
+                            finalName = staged.name,
+                            canReplace = false,
+                        )
+                    } ?: CompareUi.Unavailable
+                    item.finalizeState != FinalizeState.SAVED || item.isImported || item.mediaStoreId == null -> CompareUi.Unavailable
+                    else -> {
+                        val copy = item.finalUri!!.toUri()
+                        if (store.length(copy) <= 0) {
+                            CompareUi.Unavailable
+                        } else {
+                            val keep = settings.replaceKeepsOriginalName.first()
+                            CompareUi.Ready(
+                                name = item.displayName,
+                                original = VideoRef(original),
+                                compressed = VideoRef(copy),
+                                originalSize = item.originalSize,
+                                compressedSize = item.outputSize ?: store.length(copy),
+                                finalName = FinalizePlanner.replacementName(item.displayName, store.displayName(copy) ?: item.displayName, keep),
+                            )
+                        }
+                    }
                 }
             }
         }
