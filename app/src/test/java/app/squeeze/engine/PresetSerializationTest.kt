@@ -61,7 +61,7 @@ class PresetSerializationTest {
 
     @Test
     fun imageParamsRoundTrip() {
-        val p = ImageParams(format = ImageFormat.JPEG_XL, jxl = JxlParams(effort = 9, distance = 0.0, modular = true, colorspace = JxlColorspace.SRGB))
+        val p = ImageParams(format = ImageFormat.JPEG_XL, jxl = JxlParams(effort = 9, quality = 100, modular = true, colorspace = JxlColorspace.SRGB))
         val json = EngineJson.encodeToString(ImageParams.serializer(), p)
         assertEquals(p, EngineJson.decodeFromString(ImageParams.serializer(), json))
     }

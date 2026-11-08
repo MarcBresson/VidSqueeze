@@ -170,14 +170,30 @@ enum class JxlColorspace { XYB, SRGB }
 data class JxlParams(
     /** 1..9, libjxl default 7. Higher = smaller + slower. */
     val effort: Int = 7,
-    /** 0.0 = lossless, 1.0 ≈ visually lossless (libjxl default), up to 7.0. */
-    val distance: Double = 1.0,
+    /** JPEG-style quality 1..100 (100 = lossless, 90 ≈ visually lossless libjxl default). */
+    val quality: Int = 90,
     /** Modular mode (UI shots, true lossless) instead of VarDCT (photos). */
     val modular: Boolean = false,
     val colorspace: JxlColorspace = JxlColorspace.XYB,
     /** 8, 16 or 32 (float); 0 = keep the source depth. */
     val bitDepth: Int = 0,
-)
+) {
+    companion object {
+        /**
+         * libjxl's own JPEG-style quality → distance mapping (JxlEncoderDistanceFromQuality):
+         * 100 → 0.0 (lossless), 90 → 1.0 (visually lossless).
+         */
+        fun distanceFromQuality(quality: Int): Double = when {
+            quality >= 100 -> 0.0
+            quality >= 30 -> 0.1 + (100 - quality) * 0.09
+            else -> 53.0 / 3000.0 * quality * quality - 23.0 / 20.0 * quality + 25.0
+        }
+    }
+
+    /** Encoder distance derived from [quality]; libjxl encodes with this value. */
+    val distance: Double
+        get() = distanceFromQuality(quality)
+}
 
 @Serializable
 data class ImageParams(

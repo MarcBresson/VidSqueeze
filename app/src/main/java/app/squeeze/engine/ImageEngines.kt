@@ -56,7 +56,7 @@ class ImageEngines @Inject constructor(
         ImageFormat.WEBP ->
             "platform-webp quality=${params.quality} lossless=${params.webpLossless}"
         ImageFormat.JPEG_XL -> with(params.jxl) {
-            "libjxl effort=$effort distance=$distance modular=$modular colorspace=$colorspace bitDepth=${bitDepth.takeIf { it > 0 } ?: "source"}"
+            "libjxl effort=$effort quality=$quality modular=$modular colorspace=$colorspace bitDepth=${bitDepth.takeIf { it > 0 } ?: "source"}"
         }
         else -> "ffmpeg"
     }

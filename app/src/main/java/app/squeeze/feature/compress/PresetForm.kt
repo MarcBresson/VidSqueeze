@@ -360,7 +360,8 @@ private fun ImageEncodingSection(p: ImageParams, vm: CompressionSheetViewModel) 
         ImageFormat.entries.forEach { format ->
             Choice(
                 selected = p.format == format,
-                label = format.name.removePrefix("JPEG_").replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() },
+                label = if (format == ImageFormat.JPEG_XL) "Jpegxl"
+                else format.name.removePrefix("JPEG_").replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() },
                 onClick = { vm.editImageParams { it.copy(format = format) } },
             )
         }
@@ -416,18 +417,7 @@ private fun ImageEncodingSection(p: ImageParams, vm: CompressionSheetViewModel) 
             NumberField(stringResource(R.string.img_jxl_effort), jxl.effort, 1..9) { v ->
                 vm.editImageParams { it.copy(jxl = it.jxl.copy(effort = v)) }
             }
-            Label(stringResource(R.string.img_jxl_distance))
-            OutlinedTextField(
-                value = jxl.distance.toString(),
-                onValueChange = { text ->
-                    text.toDoubleOrNull()?.takeIf { it in 0.0..7.0 }?.let { d ->
-                        vm.editImageParams { it.copy(jxl = it.jxl.copy(distance = d)) }
-                    }
-                },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                supportingText = { Text(stringResource(R.string.img_jxl_distance_hint)) },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            QualitySlider(jxl.quality) { q -> vm.editImageParams { it.copy(jxl = it.jxl.copy(quality = q)) } }
             Chips {
                 Choice(
                     selected = jxl.modular,

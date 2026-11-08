@@ -103,8 +103,6 @@
     <string name="img_avif_effort">AVIF effort (higher is slower)</string>
     <string name="img_webp_lossless">Lossless WebP</string>
     <string name="img_jxl_effort">JPEG XL effort (higher is smaller and slower)</string>
-    <string name="img_jxl_distance">JPEG XL distance (0 = lossless)</string>
-    <string name="img_jxl_distance_hint">1.0 ≈ visually lossless</string>
     <string name="img_jxl_modular">Modular mode (UI shots, lossless)</string>
     <string name="img_jxl_colorspace">Colour space</string>
     <string name="img_jxl_colorspace_xyb">XYB (smaller)</string>
