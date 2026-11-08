@@ -12,6 +12,9 @@ enum class DateFilterKind { ALL, WEEK, MONTH, YEAR, RANGE }
 /** Whether the original file must be gone, still there, or either. */
 enum class OriginalsFilter { ANY, MISSING, PRESENT }
 
+/** Whether the compressed result file must be gone, still there, or either. */
+enum class CompressedFilter { ANY, MISSING, PRESENT }
+
 /**
  * The History screen's filter state. Categories AND across, and the status category is
  * multi-select (an item matches when any selected status matches).
@@ -31,11 +34,12 @@ data class HistoryFilters(
     /** RANGE only, inclusive end-of-day. */
     val dateEndMs: Long? = null,
     val originals: OriginalsFilter = OriginalsFilter.ANY,
+    val compressed: CompressedFilter = CompressedFilter.ANY,
 ) {
     /** True when no category restricts anything: everything matches. */
     val isEmpty: Boolean
         get() = sizeBucketIndex == null && statuses.isEmpty() && dateKind == DateFilterKind.ALL &&
-            originals == OriginalsFilter.ANY
+            originals == OriginalsFilter.ANY && compressed == CompressedFilter.ANY
 
     /** How many filter categories are active — shown as the badge on the filter icon. */
     fun activeCategoryCount(): Int = listOf(
@@ -43,6 +47,7 @@ data class HistoryFilters(
         statuses.isNotEmpty(),
         dateKind != DateFilterKind.ALL,
         originals != OriginalsFilter.ANY,
+        compressed != CompressedFilter.ANY,
     ).count { it }
 
     companion object {
@@ -63,6 +68,8 @@ data class FilterableItem(
     val presetId: String?,
     val presetName: String,
     val originalMissing: Boolean = false,
+    /** True only for finished items whose compressed result file is gone (or was never locatable). */
+    val resultMissing: Boolean = false,
 )
 
 object HistoryFilter {
@@ -78,6 +85,7 @@ object HistoryFilter {
         if (!statusMatches(item, filters)) return false
         if (!dateMatches(item, filters, now)) return false
         if (!originalsMatches(item, filters)) return false
+        if (!compressedMatches(item, filters)) return false
         return true
     }
 
@@ -134,6 +142,16 @@ object HistoryFilter {
         OriginalsFilter.ANY -> true
         OriginalsFilter.MISSING -> item.originalMissing
         OriginalsFilter.PRESENT -> !item.originalMissing
+    }
+
+    /**
+     * Both compressed chips describe finished work: a non-DONE item (failed, cancelled, running)
+     * matches neither — it has no compressed file to be present or missing.
+     */
+    private fun compressedMatches(item: FilterableItem, filters: HistoryFilters): Boolean = when (filters.compressed) {
+        CompressedFilter.ANY -> true
+        CompressedFilter.MISSING -> item.resultMissing
+        CompressedFilter.PRESENT -> item.status == ItemStatus.DONE && !item.resultMissing
     }
 
     private fun dateMatches(item: FilterableItem, filters: HistoryFilters, now: () -> Long): Boolean {

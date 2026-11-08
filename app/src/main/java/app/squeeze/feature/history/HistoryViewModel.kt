@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import app.squeeze.R
 import app.squeeze.data.BatchItemEntity
 import app.squeeze.data.HistoryEntry
+import app.squeeze.data.FinalizeState
 import app.squeeze.data.HistoryRepository
 import app.squeeze.data.QueueRepository
 import app.squeeze.data.ResultsRepository
@@ -101,10 +102,10 @@ class HistoryViewModel @Inject constructor(
 
     /** History entries after filtering. Null while loading, as before. */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val filteredHistory: StateFlow<List<HistoryEntry>?> = combine(history, _filters, sizeBucketsFlow, _missing) { entries, filters, buckets, missing ->
+    val filteredHistory: StateFlow<List<HistoryEntry>?> = combine(history, _filters, sizeBucketsFlow, _missing, _resultMissing) { entries, filters, buckets, missing, resultMissing ->
         entries?.filter { entry ->
             val at = entry.batch.finishedAt ?: entry.batch.createdAt
-            HistoryFilter.matchesBatch(entry.items.map { it.filterable(at, missing) }, filters, buckets)
+            HistoryFilter.matchesBatch(entry.items.map { it.filterable(at, missing, resultMissing) }, filters, buckets)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -203,7 +204,7 @@ class HistoryViewModel @Inject constructor(
 
     suspend fun log(itemId: Long): ItemLog? = withContext(Dispatchers.IO) { logs.read(itemId) }
 
-    private fun app.squeeze.data.BatchItemEntity.filterable(batchFallbackAt: Long, missing: Map<Long, Boolean>) = FilterableItem(
+    private fun app.squeeze.data.BatchItemEntity.filterable(batchFallbackAt: Long, missing: Map<Long, Boolean>, resultMissing: Map<Long, Boolean>) = FilterableItem(
         itemId = id,
         originalSize = originalSize,
         status = status,
@@ -212,6 +213,10 @@ class HistoryViewModel @Inject constructor(
         presetId = null,
         presetName = "",
         originalMissing = missing[id] == true,
+        // A finished item whose result is neither staged nor saved has nothing locatable left —
+        // except DISCARDED, where the app deleted the result on the user's instruction.
+        resultMissing = status == ItemStatus.DONE && finalizeState != FinalizeState.DISCARDED &&
+            ((stagedPath == null && finalUri == null) || resultMissing[id] == true),
     )
 
     private fun toastSaving() = Toast.makeText(appContext, R.string.ready_save_started, Toast.LENGTH_SHORT).show()

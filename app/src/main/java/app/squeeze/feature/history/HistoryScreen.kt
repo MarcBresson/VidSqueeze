@@ -761,6 +761,24 @@ private fun FilterSheet(
                 label = { Text(stringResource(R.string.history_filters_originals_present)) },
             )
         }
+
+        Text(stringResource(R.string.history_filters_compressed), style = MaterialTheme.typography.titleSmall)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = filters.compressed == CompressedFilter.MISSING,
+                onClick = {
+                    onFilters(filters.copy(compressed = if (filters.compressed == CompressedFilter.MISSING) CompressedFilter.ANY else CompressedFilter.MISSING))
+                },
+                label = { Text(stringResource(R.string.history_filters_compressed_missing)) },
+            )
+            FilterChip(
+                selected = filters.compressed == CompressedFilter.PRESENT,
+                onClick = {
+                    onFilters(filters.copy(compressed = if (filters.compressed == CompressedFilter.PRESENT) CompressedFilter.ANY else CompressedFilter.PRESENT))
+                },
+                label = { Text(stringResource(R.string.history_filters_compressed_present)) },
+            )
+        }
     }
 }
 

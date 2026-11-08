@@ -282,6 +282,9 @@
     <string name="history_filters_originals">Originals</string>
     <string name="history_filters_missing">Missing originals</string>
     <string name="history_filters_originals_present">Originals present</string>
+    <string name="history_filters_compressed">Compressed files</string>
+    <string name="history_filters_compressed_missing">Missing compressed files</string>
+    <string name="history_filters_compressed_present">Compressed files present</string>
     <string name="history_item_missing">Original missing</string>
     <string name="settings_filter_buckets">Size filter thresholds</string>
     <string name="settings_filter_buckets_hint">Boundaries (MB) of the size chips in History\'s filters.</string>

@@ -16,6 +16,7 @@ private fun item(
     finalizeState: FinalizeState = FinalizeState.REPLACED,
     finishedAt: Long? = 1_000_000L,
     missing: Boolean = false,
+    resultMissing: Boolean = false,
 ) = FilterableItem(
     itemId = 1,
     originalSize = sizeMb * MB,
@@ -25,6 +26,7 @@ private fun item(
     presetId = "p",
     presetName = "Preset",
     originalMissing = missing,
+    resultMissing = resultMissing,
 )
 
 class HistoryFilterTest {
@@ -160,6 +162,28 @@ class HistoryFilterTest {
         val present = HistoryFilters(originals = OriginalsFilter.PRESENT)
         assertTrue(HistoryFilter.matchesItem(item(missing = false), present, buckets))
         assertFalse(HistoryFilter.matchesItem(item(missing = true), present, buckets))
+    }
+
+    @Test
+    fun compressedMissingAndPresentAreOpposites() {
+        val missing = HistoryFilters(compressed = CompressedFilter.MISSING)
+        assertTrue(HistoryFilter.matchesItem(item(resultMissing = true), missing, buckets))
+        assertFalse(HistoryFilter.matchesItem(item(resultMissing = false), missing, buckets))
+        val present = HistoryFilters(compressed = CompressedFilter.PRESENT)
+        assertTrue(HistoryFilter.matchesItem(item(resultMissing = false), present, buckets))
+        assertFalse(HistoryFilter.matchesItem(item(resultMissing = true), present, buckets))
+    }
+
+    @Test
+    fun compressedChipsIgnoreUnfinishedItems() {
+        // A failed/cancelled/running item has no compressed file, so it matches neither chip.
+        val unfinished = item(status = ItemStatus.FAILED)
+        assertFalse(HistoryFilter.matchesItem(unfinished, HistoryFilters(compressed = CompressedFilter.MISSING), buckets))
+        assertFalse(HistoryFilter.matchesItem(unfinished, HistoryFilters(compressed = CompressedFilter.PRESENT), buckets))
+        // A pending result whose staged file was checked as gone reads as missing.
+        val pendingGone = item(finalizeState = FinalizeState.PENDING, resultMissing = true)
+        assertTrue(HistoryFilter.matchesItem(pendingGone, HistoryFilters(compressed = CompressedFilter.MISSING), buckets))
+        assertFalse(HistoryFilter.matchesItem(pendingGone, HistoryFilters(compressed = CompressedFilter.PRESENT), buckets))
     }
 
     @Test
