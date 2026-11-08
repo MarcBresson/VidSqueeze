@@ -1,6 +1,7 @@
 package app.squeeze.feature.history
 
 import app.squeeze.data.BatchItemEntity
+import app.squeeze.data.FinalizeState
 import app.squeeze.engine.MediaKind
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -35,6 +36,7 @@ private fun sourceItem(
     mediaStoreId: Long? = null,
     isImported: Boolean = false,
     kind: MediaKind = MediaKind.VIDEO,
+    finalizeState: FinalizeState = FinalizeState.PENDING,
 ) = BatchItemEntity(
     id = 1,
     batchId = 1,
@@ -45,6 +47,7 @@ private fun sourceItem(
     displayName = "video.mp4",
     originalSize = 1000,
     kind = kind,
+    finalizeState = finalizeState,
 )
 
 class MissingSourceCheckerTest {
@@ -78,11 +81,20 @@ class MissingSourceCheckerTest {
     }
 
     @Test
-    fun importedFileCheckedByPath() {
+    fun importedCopyNeverMissing() {
+        // The worker deletes the import copy when the item finishes, and the true original lives
+        // behind a URI we did not keep — "missing" can't be determined and must not be reported.
         val gone = MissingSourceChecker(FakeProbe(file = false))
-        assertTrue(gone.isMissing(sourceItem(sourceUri = "file:///data/copy.mp4", isImported = true)))
+        assertFalse(gone.isMissing(sourceItem(sourceUri = "file:///data/copy.jpg", isImported = true, kind = MediaKind.IMAGE)))
         val there = MissingSourceChecker(FakeProbe(file = true))
         assertFalse(there.isMissing(sourceItem(sourceUri = "file:///data/copy.mp4", isImported = true)))
+    }
+
+    @Test
+    fun replacedOriginalNeverMissing() {
+        // A replace the user approved deleted the original by design.
+        val checker = MissingSourceChecker(FakeProbe(mediaStore = false))
+        assertFalse(checker.isMissing(sourceItem(mediaStoreId = 42, finalizeState = FinalizeState.REPLACED)))
     }
 
     @Test

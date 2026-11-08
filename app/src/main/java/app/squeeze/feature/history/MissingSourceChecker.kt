@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
 import app.squeeze.data.BatchItemEntity
+import app.squeeze.data.FinalizeState
 import app.squeeze.engine.MediaKind
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -19,9 +20,16 @@ interface SourceProbe {
 
 /** Detects media whose ORIGINAL file was deleted or moved since compression. Best-effort. */
 class MissingSourceChecker(private val probe: SourceProbe) {
-    /** True when the item's ORIGINAL can no longer be found at its recorded location. */
+    /**
+     * True when the item's ORIGINAL can no longer be found at its recorded location. Two cases are
+     * "gone by design" and never count as missing: a replace the user approved deleted the original,
+     * and an imported item's recorded source is our own temp copy, which the worker deletes when the
+     * item finishes — the real original lives behind a URI we did not keep and cannot re-check.
+     */
     fun isMissing(item: BatchItemEntity): Boolean = try {
         when {
+            item.finalizeState == FinalizeState.REPLACED -> false
+            item.isImported -> false
             // A moved item keeps its MediaStore id, so only a gone id counts as missing.
             item.mediaStoreId != null -> !probe.mediaStoreExists(item.mediaStoreId, item.kind)
             item.sourceUri.startsWith("file:") -> !probe.fileExists(item.sourceUri.removePrefix("file://"))

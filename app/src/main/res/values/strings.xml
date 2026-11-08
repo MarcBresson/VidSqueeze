@@ -252,6 +252,7 @@
     <string name="compare_original_kept">Original kept.</string>
     <string name="compare_replace_failed">Could not replace the original.</string>
     <string name="play_video">Play video</string>
+    <string name="open_photo">Open photo</string>
     <string name="play_no_player">No app can play this video</string>
     <string name="play_failed">Could not open the video</string>
     <string name="stats_period_all">All time</string>

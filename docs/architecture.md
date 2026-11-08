@@ -129,7 +129,12 @@ Stats are computed from `Item` joined with `Batch`, filtered by period, grouped 
 - Photo items in history are kind-aware end to end: `MissingSourceChecker` looks a photo's
   MediaStore id up in the image collection (not video), thumbnails decode via
   `ThumbnailUtils.createImageThumbnail` with a photo placeholder icon, and opening a result
-  uses `ACTION_VIEW` with `image/*`. Sharing an all-photo batch shares `image/*`.
+  uses `ACTION_VIEW` with `image/*` (the row's play button becomes an open-photo button).
+  Sharing an all-photo batch shares `image/*`. Imported items (every photo-picker pick, since
+  picker URIs carry no MediaStore id) are never tagged "Original missing": their recorded source
+  is the app's own import copy, which the worker deletes when the item finishes, and the true
+  original cannot be re-checked. The same applies to replaced items; the missing tag itself only
+  renders on an expanded row, and the collapsed row no longer shows a Photos/Videos pill.
 - Photo compare: `CompareScreen` renders `CompareUi.Ready` of `kind == IMAGE` as two
   side-by-side decoded bitmaps (`ImageCompare`) instead of the synced media3 players.
 - The compression sheet opens on the Photos tab when the selection is photos-only (the video

@@ -77,11 +77,16 @@ fun VideoThumbnail(media: VideoRef?, modifier: Modifier = Modifier, size: Dp = 5
     }
 }
 
-/** Opens the video in the default player. */
+/** Opens the video in the default player, or a photo in the gallery. */
 @Composable
 fun PlayButton(video: VideoRef, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val photo = video.kind == MediaKind.IMAGE
     IconButton(onClick = { context.playVideo(video) }, modifier = modifier.size(36.dp)) {
-        Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.play_video), tint = MaterialTheme.colorScheme.primary)
+        if (photo) {
+            Icon(Icons.Filled.Image, contentDescription = stringResource(R.string.open_photo), tint = MaterialTheme.colorScheme.primary)
+        } else {
+            Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.play_video), tint = MaterialTheme.colorScheme.primary)
+        }
     }
 }

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -83,7 +84,6 @@ import app.squeeze.data.ItemStatus
 import app.squeeze.data.PresetStats
 import app.squeeze.data.StatTotals
 import app.squeeze.data.StatsPeriod
-import app.squeeze.engine.MediaKind
 import app.squeeze.feature.home.Reduction
 import app.squeeze.feature.queue.activeJobs
 import app.squeeze.finalize.FinalizeAction
@@ -337,14 +337,6 @@ private fun ItemBlock(
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(item.displayName, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
-                if (missing[item.id] == true) {
-                    Pill(
-                        stringResource(R.string.history_item_missing),
-                        MaterialTheme.colorScheme.errorContainer,
-                        MaterialTheme.colorScheme.onErrorContainer,
-                    )
-                }
-                if (item.kind == MediaKind.IMAGE) Pill(stringResource(R.string.pill_photos))
                 OutcomePill(item)
                 if (canCompare(item)) {
                     IconButton(onClick = { onCompare(item.id) }, Modifier.padding(start = 2.dp)) {
@@ -354,8 +346,11 @@ private fun ItemBlock(
                 result?.let { PlayButton(it, Modifier.padding(start = 2.dp)) }
                 // A finished video can be sent on again, whatever was decided about its result.
                 if (result != null && item.finalizeState != FinalizeState.PENDING) {
-                    IconButton(onClick = { context.startActivity(FinalizeActivity.itemIntent(context, item.id, FinalizeAction.SHARE)) }) {
-                        Icon(Icons.Outlined.Share, contentDescription = stringResource(R.string.ready_reshare))
+                    IconButton(
+                        onClick = { context.startActivity(FinalizeActivity.itemIntent(context, item.id, FinalizeAction.SHARE)) },
+                        modifier = Modifier.padding(start = 2.dp).size(36.dp),
+                    ) {
+                        Icon(Icons.Outlined.Share, contentDescription = stringResource(R.string.ready_reshare), tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -393,6 +388,14 @@ private fun ItemBlock(
                 }
                 item.error?.let { Text(it.lineSequence().first(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
                 finalizeLabel(item)?.let { Text(stringResource(it), style = MaterialTheme.typography.bodySmall) }
+                // The missing tag only shows on the expanded row: the collapsed one is a summary.
+                if (missing[item.id] == true) {
+                    Pill(
+                        stringResource(R.string.history_item_missing),
+                        MaterialTheme.colorScheme.errorContainer,
+                        MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                }
                 // Unknown-yet items (missing[id] == null) show nothing until the on-expand check lands.
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     if (canPlayOriginal(item) && missing[item.id] == false) {
@@ -486,11 +489,12 @@ internal fun canCompare(item: BatchItemEntity): Boolean = item.status == ItemSta
 private val FINISHED_STATUSES = setOf(ItemStatus.DONE, ItemStatus.FAILED, ItemStatus.SKIPPED_NO_GAIN, ItemStatus.CANCELLED)
 
 /**
- * A finished item whose original plausibly still exists: replacing deleted the original, and queued or
- * running items are still working on it. Existence itself is checked when the row is expanded.
+ * A finished item whose original plausibly still exists: replacing deleted the original, queued or
+ * running items are still working on it, and an imported item's temp copy is deleted by the worker
+ * as soon as it finishes. Existence itself is checked when the row is expanded.
  */
 internal fun canPlayOriginal(item: BatchItemEntity): Boolean =
-    item.status in FINISHED_STATUSES && item.finalizeState != FinalizeState.REPLACED
+    item.status in FINISHED_STATUSES && item.finalizeState != FinalizeState.REPLACED && !item.isImported
 
 /** What to draw when there is no result: the original, as far as it can still be read. */
 private fun sourceVideo(item: BatchItemEntity): VideoRef {

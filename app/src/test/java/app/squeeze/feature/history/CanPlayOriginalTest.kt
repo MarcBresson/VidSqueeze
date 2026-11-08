@@ -29,4 +29,10 @@ class CanPlayOriginalTest {
         assertFalse(canPlayOriginal(item(ItemStatus.QUEUED)))
         assertFalse(canPlayOriginal(item(ItemStatus.RUNNING)))
     }
+
+    @Test
+    fun importedNever() {
+        // The worker deletes an imported item's temp copy as soon as it finishes.
+        assertFalse(canPlayOriginal(item(ItemStatus.DONE, FinalizeState.PENDING).copy(isImported = true)))
+    }
 }
