@@ -138,6 +138,7 @@ class HistoryViewModel @Inject constructor(
                         originalSize = item.originalSize,
                         outputSize = item.outputSize,
                         finalizeState = item.finalizeState,
+                        kind = item.kind,
                         finishedAt = item.finishedAt ?: at,
                         startedAt = item.startedAt,
                     )

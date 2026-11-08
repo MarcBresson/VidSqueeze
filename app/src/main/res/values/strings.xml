@@ -216,6 +216,10 @@
         <item quantity="one">%d video</item>
         <item quantity="other">%d videos</item>
     </plurals>
+    <plurals name="history_photos">
+        <item quantity="one">%d photo</item>
+        <item quantity="other">%d photos</item>
+    </plurals>
     <string name="history_started_finished">%1$s → %2$s</string>
     <string name="history_item_sizes">%1$s → %2$s</string>
     <string name="history_pill_failed">Failed</string>
@@ -261,7 +265,7 @@
     <string name="stats_period_year">Past year</string>
     <string name="stats_period_month">Past month</string>
     <string name="stats_period_week">Past week</string>
-    <string name="stats_empty">No compressed videos in this period.</string>
+    <string name="stats_empty">Nothing compressed in this period.</string>
     <string name="history_filters_title">Filters</string>
     <string name="history_filters_clear">Clear filters</string>
     <string name="history_filters_clear_all">Clear all</string>
@@ -292,6 +296,7 @@
     <string name="stats_saved">%1$s saved (−%2$d%%)</string>
     <string name="stats_sizes">%1$s → %2$s</string>
     <string name="stats_freed">%1$s freed by replacing originals</string>
+    <string name="stats_time">Time spent compressing: %1$s</string>
     <string name="shortcut_run">Run auto compression now</string>
     <string name="shortcut_pause">Pause the queue</string>
     <string name="shortcut_resume">Resume the queue</string>
@@ -485,8 +490,10 @@
     <string name="home_impact_saved">Total storage saved</string>
     <string name="home_impact_week">%1$s saved this week</string>
     <string name="home_impact_videos">Videos processed</string>
+    <string name="home_impact_photos">Photos processed</string>
     <string name="home_impact_average">Average reduction</string>
     <string name="home_impact_time">Total time taken</string>
+    <string name="home_impact_freed">Freed from device</string>
     <string name="home_impact_empty">Nothing squeezed yet. Your savings will show up here.</string>
     <string name="duration_hours_minutes">%1$d h %2$d min</string>
     <string name="duration_minutes">%d min</string>

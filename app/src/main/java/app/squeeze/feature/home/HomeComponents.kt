@@ -54,7 +54,7 @@ private fun sizeText(bytes: Long): String = Formatter.formatShortFileSize(LocalC
 
 /** "1 h 12 min", "8 min", "45 s"; zero shows as a dash-free "0 s". */
 @Composable
-private fun durationText(ms: Long): String {
+internal fun durationText(ms: Long): String {
     val seconds = ms / 1000
     val hours = seconds / 3600
     val minutes = (seconds % 3600) / 60
@@ -209,6 +209,9 @@ private fun PeriodStats(label: String, totals: StatTotals?, modifier: Modifier =
             Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(sizeText(value.savedBytes), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text(pluralStringResource(R.plurals.history_videos, value.videos, value.videos), style = MaterialTheme.typography.bodySmall)
+            if (value.photos > 0) {
+                Text(pluralStringResource(R.plurals.history_photos, value.photos, value.photos), style = MaterialTheme.typography.bodySmall)
+            }
             Text(durationText(value.durationMs), style = MaterialTheme.typography.bodySmall)
         }
     }
@@ -274,7 +277,7 @@ fun ImpactCard(all: StatTotals?, week: StatTotals?) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             val total = all ?: StatTotals()
-            if (total.videos == 0) {
+            if (total.items == 0) {
                 Text(stringResource(R.string.home_impact_empty), style = MaterialTheme.typography.bodyMedium)
                 return@Column
             }
@@ -292,8 +295,10 @@ fun ImpactCard(all: StatTotals?, week: StatTotals?) {
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ImpactFigure(total.videos.toString(), stringResource(R.string.home_impact_videos), Modifier.weight(1f))
+                if (total.videos > 0) ImpactFigure(total.videos.toString(), stringResource(R.string.home_impact_videos), Modifier.weight(1f))
+                if (total.photos > 0) ImpactFigure(total.photos.toString(), stringResource(R.string.home_impact_photos), Modifier.weight(1f))
                 ImpactFigure("−${total.savedPercent}%", stringResource(R.string.home_impact_average), Modifier.weight(1f))
+                if (total.freedBytes > 0) ImpactFigure(sizeText(total.freedBytes), stringResource(R.string.home_impact_freed), Modifier.weight(1f))
                 ImpactFigure(durationText(total.durationMs), stringResource(R.string.home_impact_time), Modifier.weight(1f))
             }
         }

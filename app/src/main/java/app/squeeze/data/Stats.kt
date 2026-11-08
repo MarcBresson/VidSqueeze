@@ -1,6 +1,7 @@
 package app.squeeze.data
 
 import androidx.room.ColumnInfo
+import app.squeeze.engine.MediaKind
 import app.squeeze.finalize.FinalizePlanner
 
 enum class StatsPeriod(val days: Long?) {
@@ -18,19 +19,21 @@ enum class StatsPeriod(val days: Long?) {
     }
 }
 
-/** One compressed video, as far as statistics are concerned (see [BatchItemDao.statRows]). */
+/** One compressed item, as far as statistics are concerned (see [BatchItemDao.statRows]). */
 data class StatRow(
     @ColumnInfo(name = "presetId") val presetId: String?,
     @ColumnInfo(name = "presetName") val presetName: String,
     @ColumnInfo(name = "originalSize") val originalSize: Long,
     @ColumnInfo(name = "outputSize") val outputSize: Long?,
     @ColumnInfo(name = "finalizeState") val finalizeState: FinalizeState,
+    @ColumnInfo(name = "kind") val kind: MediaKind = MediaKind.VIDEO,
     @ColumnInfo(name = "finishedAt") val finishedAt: Long?,
     @ColumnInfo(name = "startedAt") val startedAt: Long? = null,
 )
 
 data class StatTotals(
     val videos: Int = 0,
+    val photos: Int = 0,
     val originalBytes: Long = 0,
     val outputBytes: Long = 0,
     /** Part of the saving that really left the device: results that replaced their original. */
@@ -40,12 +43,15 @@ data class StatTotals(
 ) {
     val savedBytes: Long get() = (originalBytes - outputBytes).coerceAtLeast(0)
     val savedPercent: Int get() = if (originalBytes <= 0) 0 else ((savedBytes * 100) / originalBytes).toInt()
+    /** Compressed items of either kind. */
+    val items: Int get() = videos + photos
 
     operator fun plus(row: StatRow): StatTotals {
         val output = row.outputSize ?: row.originalSize
         val saved = (row.originalSize - output).coerceAtLeast(0)
         return StatTotals(
-            videos = videos + 1,
+            videos = videos + if (row.kind == MediaKind.VIDEO) 1 else 0,
+            photos = photos + if (row.kind == MediaKind.IMAGE) 1 else 0,
             originalBytes = originalBytes + row.originalSize,
             outputBytes = outputBytes + output,
             freedBytes = freedBytes + if (row.finalizeState == FinalizeState.REPLACED) saved else 0,

@@ -85,6 +85,7 @@ import app.squeeze.data.PresetStats
 import app.squeeze.data.StatTotals
 import app.squeeze.data.StatsPeriod
 import app.squeeze.feature.home.Reduction
+import app.squeeze.feature.home.durationText
 import app.squeeze.feature.queue.activeJobs
 import app.squeeze.finalize.FinalizeAction
 import app.squeeze.finalize.FinalizeActivity
@@ -537,7 +538,7 @@ private fun StatsPane(vm: HistoryViewModel) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         val current = stats ?: return@LazyColumn
-        if (current.total.videos == 0) {
+        if (current.total.items == 0) {
             item(key = "empty") {
                 if (filters.isEmpty) Text(stringResource(R.string.stats_empty)) else EmptyFilterResult(onClear = vm::clearFilters)
             }
@@ -566,6 +567,12 @@ private fun StatsCard(title: String, totals: StatTotals) {
                 pluralStringResource(R.plurals.history_videos, totals.videos, totals.videos),
                 style = MaterialTheme.typography.bodyMedium,
             )
+            if (totals.photos > 0) {
+                Text(
+                    pluralStringResource(R.plurals.history_photos, totals.photos, totals.photos),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
             Text(
                 stringResource(R.string.stats_saved, size(totals.savedBytes), totals.savedPercent),
                 style = MaterialTheme.typography.headlineSmall,
@@ -576,6 +583,9 @@ private fun StatsCard(title: String, totals: StatTotals) {
             )
             if (totals.freedBytes > 0) {
                 Text(stringResource(R.string.stats_freed, size(totals.freedBytes)), style = MaterialTheme.typography.bodySmall)
+            }
+            if (totals.durationMs > 0) {
+                Text(stringResource(R.string.stats_time, durationText(totals.durationMs)), style = MaterialTheme.typography.bodySmall)
             }
         }
     }

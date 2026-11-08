@@ -1,5 +1,6 @@
 package app.squeeze.data
 
+import app.squeeze.engine.MediaKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -14,9 +15,10 @@ class StatsTest {
         original: Long = 1000,
         output: Long? = 400,
         state: FinalizeState = FinalizeState.SAVED,
+        kind: MediaKind = MediaKind.VIDEO,
         daysAgo: Long = 1,
         tookMs: Long? = null,
-    ) = StatRow(id, preset, original, output, state, now - daysAgo * day, tookMs?.let { now - daysAgo * day - it })
+    ) = StatRow(id, preset, original, output, state, kind, now - daysAgo * day, tookMs?.let { now - daysAgo * day - it })
 
     @Test
     fun `totals add up and report saving and percent`() {
@@ -107,6 +109,18 @@ class StatsTest {
         assertEquals(listOf(2L, 3L), history.first().items.map { it.position })
         assertNull(history.first().single)
         assertEquals(1, history.last().single?.position?.toInt())
+    }
+
+    @Test
+    fun `videos and photos are counted per kind`() {
+        val stats = StatsCalculator.compute(
+            listOf(row(), row(kind = MediaKind.IMAGE), row(kind = MediaKind.IMAGE, original = 500, output = 100)),
+            StatsPeriod.ALL, now,
+        )
+        assertEquals(1, stats.total.videos)
+        assertEquals(2, stats.total.photos)
+        assertEquals(3, stats.total.items)
+        assertEquals(1600, stats.total.savedBytes)
     }
 
     @Test
