@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -139,8 +141,6 @@ fun HistoryScreen(
                     filters = filters,
                     buckets = buckets,
                     onFilters = vm::setFilters,
-                    onStatus = vm::setStatus,
-                    onPending = vm::setPendingChip,
                     onClear = vm::clearFilters,
                 )
             }
@@ -575,19 +575,25 @@ private fun StatsCard(title: String, totals: StatTotals) {
 /** MB in bytes, for sizing the filter chip labels with [Formatter.formatShortFileSize]. */
 private const val MB = 1024L * 1024
 
-/** The History filter sheet: one single-select chip group per category, applied live. */
+/** The History filter sheet, applied live. The whole sheet scrolls so no section is hidden. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FilterSheet(
     filters: HistoryFilters,
     buckets: List<Long>,
     onFilters: (HistoryFilters) -> Unit,
-    onStatus: (VideoStatusFilter?) -> Unit,
-    onPending: (Boolean) -> Unit,
     onClear: () -> Unit,
 ) {
     val context = LocalContext.current
-    Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    // The range picker is tall; Done collapses it back to a summary line, and the Range chip reopens it.
+    var rangeOpen by rememberSaveable { mutableStateOf(false) }
+    Column(
+        Modifier
+            .padding(horizontal = 16.dp)
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 stringResource(R.string.history_filters_title),
@@ -649,8 +655,11 @@ private fun FilterSheet(
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             VideoStatusFilter.entries.forEach { status ->
                 FilterChip(
-                    selected = filters.status == status,
-                    onClick = { onStatus(if (filters.status == status) null else status) },
+                    selected = status in filters.statuses,
+                    onClick = {
+                        val next = if (status in filters.statuses) filters.statuses - status else filters.statuses + status
+                        onFilters(filters.copy(statuses = next))
+                    },
                     label = {
                         Text(
                             stringResource(
@@ -666,12 +675,6 @@ private fun FilterSheet(
                 )
             }
         }
-
-        FilterChip(
-            selected = filters.onlyPending,
-            onClick = { onPending(!filters.onlyPending) },
-            label = { Text(stringResource(R.string.history_filters_pending)) },
-        )
 
         Text(stringResource(R.string.history_filters_date), style = MaterialTheme.typography.titleSmall)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -697,33 +700,58 @@ private fun FilterSheet(
             )
             FilterChip(
                 selected = filters.dateKind == DateFilterKind.RANGE,
-                onClick = { onFilters(filters.copy(dateKind = DateFilterKind.RANGE)) },
+                onClick = {
+                    if (filters.dateKind != DateFilterKind.RANGE) onFilters(filters.copy(dateKind = DateFilterKind.RANGE))
+                    rangeOpen = true
+                },
                 label = { Text(stringResource(R.string.history_filters_date_range)) },
             )
         }
         if (filters.dateKind == DateFilterKind.RANGE) {
-            val rangeState = rememberDateRangePickerState(
-                initialSelectedStartDateMillis = filters.dateStartMs,
-                initialSelectedEndDateMillis = filters.dateEndMs,
-            )
-            TextButton(
-                onClick = {
-                    onFilters(
-                        filters.copy(
-                            dateStartMs = rangeState.selectedStartDateMillis,
-                            dateEndMs = rangeState.selectedEndDateMillis?.let(::endOfDayMs),
-                        ),
+            if (rangeOpen) {
+                val rangeState = rememberDateRangePickerState(
+                    initialSelectedStartDateMillis = filters.dateStartMs,
+                    initialSelectedEndDateMillis = filters.dateEndMs,
+                )
+                TextButton(
+                    onClick = {
+                        val start = rangeState.selectedStartDateMillis ?: return@TextButton
+                        // A lone start date is a one-day range, so Done always applies something.
+                        val end = rangeState.selectedEndDateMillis ?: start
+                        onFilters(filters.copy(dateStartMs = start, dateEndMs = endOfDayMs(end)))
+                        rangeOpen = false
+                    },
+                ) { Text(stringResource(R.string.history_filters_date_apply)) }
+                DateRangePicker(state = rangeState, modifier = Modifier.fillMaxWidth().height(360.dp))
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "${formatDay(filters.dateStartMs ?: 0)} – ${formatDay(filters.dateEndMs ?: 0)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                },
-            ) { Text(stringResource(R.string.history_filters_date_apply)) }
-            DateRangePicker(state = rangeState, modifier = Modifier.fillMaxWidth().height(500.dp))
+                    TextButton(onClick = { rangeOpen = true }) { Text(stringResource(R.string.history_filters_date_edit)) }
+                }
+            }
         }
 
-        FilterChip(
-            selected = filters.missingOnly,
-            onClick = { onFilters(filters.copy(missingOnly = !filters.missingOnly)) },
-            label = { Text(stringResource(R.string.history_filters_missing)) },
-        )
+        Text(stringResource(R.string.history_filters_originals), style = MaterialTheme.typography.titleSmall)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = filters.originals == OriginalsFilter.MISSING,
+                onClick = {
+                    onFilters(filters.copy(originals = if (filters.originals == OriginalsFilter.MISSING) OriginalsFilter.ANY else OriginalsFilter.MISSING))
+                },
+                label = { Text(stringResource(R.string.history_filters_missing)) },
+            )
+            FilterChip(
+                selected = filters.originals == OriginalsFilter.PRESENT,
+                onClick = {
+                    onFilters(filters.copy(originals = if (filters.originals == OriginalsFilter.PRESENT) OriginalsFilter.ANY else OriginalsFilter.PRESENT))
+                },
+                label = { Text(stringResource(R.string.history_filters_originals_present)) },
+            )
+        }
     }
 }
 
@@ -743,6 +771,11 @@ private fun sizeChipLabel(context: Context, index: Int, buckets: List<Long>): St
 private fun endOfDayMs(epochMs: Long): Long =
     java.time.Instant.ofEpochMilli(epochMs).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
         .atTime(23, 59, 59, 999_000_000).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+private val day: DateTimeFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+
+/** "Jan 5, 2026"-style label for the applied date range, in the user's locale. */
+private fun formatDay(epochMs: Long): String = day.format(Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()))
 
 /** Shown when filters are active but nothing matches: the message plus the way out. */
 @Composable

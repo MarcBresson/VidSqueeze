@@ -9,9 +9,13 @@ enum class VideoStatusFilter { AWAITING_ACTION, FAILED, DONE, CANCELLED }
 
 enum class DateFilterKind { ALL, WEEK, MONTH, YEAR, RANGE }
 
+/** Whether the original file must be gone, still there, or either. */
+enum class OriginalsFilter { ANY, MISSING, PRESENT }
+
 /**
- * The History screen's filter state, one single-select per category, AND across categories.
- * A null/`ALL`/false field means the category is off.
+ * The History screen's filter state. Categories AND across, and the status category is
+ * multi-select (an item matches when any selected status matches).
+ * An empty set / `ALL` / `ANY` field means the category is off.
  */
 data class HistoryFilters(
     /** Index into the resolved size buckets, or [HistoryFilters.CUSTOM_INDEX] for the custom range. */
@@ -19,29 +23,26 @@ data class HistoryFilters(
     /** Used only when sizeBucketIndex == [HistoryFilters.CUSTOM_INDEX]. */
     val customSizeMinMb: Long? = null,
     val customSizeMaxMb: Long? = null,
-    /** Null = status category off. */
-    val status: VideoStatusFilter? = null,
+    /** Empty = status category off. */
+    val statuses: Set<VideoStatusFilter> = emptySet(),
     val dateKind: DateFilterKind = DateFilterKind.ALL,
     /** RANGE only, inclusive. */
     val dateStartMs: Long? = null,
     /** RANGE only, inclusive end-of-day. */
     val dateEndMs: Long? = null,
-    /** Same predicate as status == [VideoStatusFilter.AWAITING_ACTION]; the chips toggle together. */
-    val onlyPending: Boolean = false,
-    val missingOnly: Boolean = false,
+    val originals: OriginalsFilter = OriginalsFilter.ANY,
 ) {
     /** True when no category restricts anything: everything matches. */
     val isEmpty: Boolean
-        get() = sizeBucketIndex == null && status == null && dateKind == DateFilterKind.ALL &&
-            !onlyPending && !missingOnly
+        get() = sizeBucketIndex == null && statuses.isEmpty() && dateKind == DateFilterKind.ALL &&
+            originals == OriginalsFilter.ANY
 
     /** How many filter categories are active — shown as the badge on the filter icon. */
     fun activeCategoryCount(): Int = listOf(
         sizeBucketIndex != null,
-        status != null,
+        statuses.isNotEmpty(),
         dateKind != DateFilterKind.ALL,
-        onlyPending,
-        missingOnly,
+        originals != OriginalsFilter.ANY,
     ).count { it }
 
     companion object {
@@ -76,7 +77,7 @@ object HistoryFilter {
         if (!sizeMatches(item, filters, buckets)) return false
         if (!statusMatches(item, filters)) return false
         if (!dateMatches(item, filters, now)) return false
-        if (filters.missingOnly && !item.originalMissing) return false
+        if (!originalsMatches(item, filters)) return false
         return true
     }
 
@@ -113,19 +114,26 @@ object HistoryFilter {
         return true
     }
 
-    /** The pending chip and the AWAITING_ACTION chip are one predicate on purpose. */
+    /** The AWAITING_ACTION status means the same predicate the old pending chip stood for. */
     private fun isPendingDone(item: FilterableItem): Boolean =
         item.status == ItemStatus.DONE && item.finalizeState == FinalizeState.PENDING
 
     private fun statusMatches(item: FilterableItem, filters: HistoryFilters): Boolean {
-        if (filters.onlyPending && !isPendingDone(item)) return false
-        val status = filters.status ?: return true
-        return when (status) {
-            VideoStatusFilter.AWAITING_ACTION -> isPendingDone(item)
-            VideoStatusFilter.FAILED -> item.status == ItemStatus.FAILED
-            VideoStatusFilter.DONE -> item.status == ItemStatus.DONE && item.finalizeState != FinalizeState.PENDING
-            VideoStatusFilter.CANCELLED -> item.status == ItemStatus.CANCELLED
+        if (filters.statuses.isEmpty()) return true
+        return filters.statuses.any { status ->
+            when (status) {
+                VideoStatusFilter.AWAITING_ACTION -> isPendingDone(item)
+                VideoStatusFilter.FAILED -> item.status == ItemStatus.FAILED
+                VideoStatusFilter.DONE -> item.status == ItemStatus.DONE && item.finalizeState != FinalizeState.PENDING
+                VideoStatusFilter.CANCELLED -> item.status == ItemStatus.CANCELLED
+            }
         }
+    }
+
+    private fun originalsMatches(item: FilterableItem, filters: HistoryFilters): Boolean = when (filters.originals) {
+        OriginalsFilter.ANY -> true
+        OriginalsFilter.MISSING -> item.originalMissing
+        OriginalsFilter.PRESENT -> !item.originalMissing
     }
 
     private fun dateMatches(item: FilterableItem, filters: HistoryFilters, now: () -> Long): Boolean {

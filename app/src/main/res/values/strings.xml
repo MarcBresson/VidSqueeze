@@ -272,11 +272,13 @@
     <string name="history_filters_status_failed">Failed</string>
     <string name="history_filters_status_done">Done</string>
     <string name="history_filters_status_cancelled">Cancelled</string>
-    <string name="history_filters_pending">Only pending results</string>
     <string name="history_filters_date">Date</string>
     <string name="history_filters_date_range">Range</string>
     <string name="history_filters_date_apply">Done</string>
+    <string name="history_filters_date_edit">Edit</string>
+    <string name="history_filters_originals">Originals</string>
     <string name="history_filters_missing">Missing originals</string>
+    <string name="history_filters_originals_present">Originals present</string>
     <string name="history_item_missing">Original missing</string>
     <string name="settings_filter_buckets">Size filter thresholds</string>
     <string name="settings_filter_buckets_hint">Boundaries (MB) of the size chips in History\'s filters.</string>

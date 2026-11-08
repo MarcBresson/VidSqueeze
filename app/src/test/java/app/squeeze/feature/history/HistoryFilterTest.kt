@@ -88,7 +88,7 @@ class HistoryFilterTest {
 
     @Test
     fun statusAwaitingActionMatchesPendingDoneItem() {
-        val f = HistoryFilters(status = VideoStatusFilter.AWAITING_ACTION)
+        val f = HistoryFilters(statuses = setOf(VideoStatusFilter.AWAITING_ACTION))
         assertTrue(HistoryFilter.matchesItem(item(finalizeState = FinalizeState.PENDING), f, buckets))
         assertFalse(HistoryFilter.matchesItem(item(finalizeState = FinalizeState.SAVED), f, buckets))
         assertFalse(HistoryFilter.matchesItem(item(status = ItemStatus.FAILED), f, buckets))
@@ -96,7 +96,7 @@ class HistoryFilterTest {
 
     @Test
     fun statusDoneExcludesPending() {
-        val f = HistoryFilters(status = VideoStatusFilter.DONE)
+        val f = HistoryFilters(statuses = setOf(VideoStatusFilter.DONE))
         for (state in listOf(FinalizeState.REPLACED, FinalizeState.SAVED, FinalizeState.SHARED_ONLY, FinalizeState.DISCARDED)) {
             assertTrue(HistoryFilter.matchesItem(item(finalizeState = state), f, buckets))
         }
@@ -106,24 +106,24 @@ class HistoryFilterTest {
 
     @Test
     fun statusFailedAndCancelled() {
-        val failed = HistoryFilters(status = VideoStatusFilter.FAILED)
+        val failed = HistoryFilters(statuses = setOf(VideoStatusFilter.FAILED))
         assertTrue(HistoryFilter.matchesItem(item(status = ItemStatus.FAILED), failed, buckets))
         assertFalse(HistoryFilter.matchesItem(item(status = ItemStatus.CANCELLED), failed, buckets))
-        val cancelled = HistoryFilters(status = VideoStatusFilter.CANCELLED)
+        val cancelled = HistoryFilters(statuses = setOf(VideoStatusFilter.CANCELLED))
         assertTrue(HistoryFilter.matchesItem(item(status = ItemStatus.CANCELLED), cancelled, buckets))
         assertFalse(HistoryFilter.matchesItem(item(status = ItemStatus.FAILED), cancelled, buckets))
     }
 
     @Test
-    fun pendingChipEqualsAwaitingActionStatus() {
-        val pending = HistoryFilters(onlyPending = true)
-        val awaiting = HistoryFilters(status = VideoStatusFilter.AWAITING_ACTION)
-        val pendingItem = item(finalizeState = FinalizeState.PENDING)
-        val savedItem = item(finalizeState = FinalizeState.SAVED)
-        for (f in listOf(pending, awaiting)) {
-            assertTrue(HistoryFilter.matchesItem(pendingItem, f, buckets))
-            assertFalse(HistoryFilter.matchesItem(savedItem, f, buckets))
-        }
+    fun multipleStatusesMatchAnyOfThem() {
+        val f = HistoryFilters(statuses = setOf(VideoStatusFilter.FAILED, VideoStatusFilter.CANCELLED))
+        assertTrue(HistoryFilter.matchesItem(item(status = ItemStatus.FAILED), f, buckets))
+        assertTrue(HistoryFilter.matchesItem(item(status = ItemStatus.CANCELLED), f, buckets))
+        assertFalse(HistoryFilter.matchesItem(item(status = ItemStatus.DONE, finalizeState = FinalizeState.SAVED), f, buckets))
+        // A selected status plus awaiting action widens rather than replaces.
+        val withPending = HistoryFilters(statuses = setOf(VideoStatusFilter.DONE, VideoStatusFilter.AWAITING_ACTION))
+        assertTrue(HistoryFilter.matchesItem(item(finalizeState = FinalizeState.PENDING), withPending, buckets))
+        assertTrue(HistoryFilter.matchesItem(item(finalizeState = FinalizeState.SAVED), withPending, buckets))
     }
 
     @Test
@@ -153,15 +153,18 @@ class HistoryFilterTest {
     }
 
     @Test
-    fun missingOnlyUsesFlag() {
-        val f = HistoryFilters(missingOnly = true)
-        assertTrue(HistoryFilter.matchesItem(item(missing = true), f, buckets))
-        assertFalse(HistoryFilter.matchesItem(item(missing = false), f, buckets))
+    fun originalsMissingAndPresentAreOpposites() {
+        val missing = HistoryFilters(originals = OriginalsFilter.MISSING)
+        assertTrue(HistoryFilter.matchesItem(item(missing = true), missing, buckets))
+        assertFalse(HistoryFilter.matchesItem(item(missing = false), missing, buckets))
+        val present = HistoryFilters(originals = OriginalsFilter.PRESENT)
+        assertTrue(HistoryFilter.matchesItem(item(missing = false), present, buckets))
+        assertFalse(HistoryFilter.matchesItem(item(missing = true), present, buckets))
     }
 
     @Test
     fun batchMatchesWhenAnyItemMatches() {
-        val failed = HistoryFilters(status = VideoStatusFilter.FAILED)
+        val failed = HistoryFilters(statuses = setOf(VideoStatusFilter.FAILED))
         val batch = listOf(
             item(status = ItemStatus.DONE, finalizeState = FinalizeState.SAVED),
             item(status = ItemStatus.FAILED),
@@ -178,10 +181,9 @@ class HistoryFilterTest {
     fun skippedNoGainMatchesNoStatusChip() {
         val skipped = item(status = ItemStatus.SKIPPED_NO_GAIN)
         for (status in VideoStatusFilter.entries) {
-            assertFalse(HistoryFilter.matchesItem(skipped, HistoryFilters(status = status), buckets))
+            assertFalse(HistoryFilter.matchesItem(skipped, HistoryFilters(statuses = setOf(status)), buckets))
         }
         // With the status category off, the item is not hidden by status.
-        assertTrue(HistoryFilter.matchesItem(skipped, HistoryFilters(onlyPending = false), buckets))
-        assertFalse(HistoryFilter.matchesItem(skipped, HistoryFilters(onlyPending = true), buckets))
+        assertTrue(HistoryFilter.matchesItem(skipped, HistoryFilters(), buckets))
     }
 }

@@ -104,7 +104,7 @@ class HistoryViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    /** Active jobs filtered with the size / date predicates only: status, pending and missing describe finished work. */
+    /** Active jobs filtered with the same predicates: status and originals describe finished work, so they rarely match a running item. */
     @OptIn(ExperimentalCoroutinesApi::class)
     val filteredJobs: StateFlow<QueueUi> = combine(jobs, _filters, sizeBucketsFlow) { jobs, filters, buckets ->
         if (filters.isEmpty) {
@@ -174,27 +174,6 @@ class HistoryViewModel @Inject constructor(
             _missing.value = _missing.value + (item.id to gone)
         }
     }
-
-    fun setSizeBucket(index: Int?) = update { it.copy(sizeBucketIndex = index) }
-
-    fun setCustomSize(minMb: Long?, maxMb: Long?) = update { it.copy(customSizeMinMb = minMb, customSizeMaxMb = maxMb) }
-
-    /** The AWAITING_ACTION chip and the pending chip toggle together: one predicate, two controls. */
-    fun setStatus(status: VideoStatusFilter?) = update {
-        if (status == VideoStatusFilter.AWAITING_ACTION) it.copy(status = status, onlyPending = true)
-        else it.copy(status = status, onlyPending = false)
-    }
-
-    fun setPendingChip(on: Boolean) = update {
-        if (on) it.copy(onlyPending = true, status = VideoStatusFilter.AWAITING_ACTION)
-        else it.copy(onlyPending = false, status = if (it.status == VideoStatusFilter.AWAITING_ACTION) null else it.status)
-    }
-
-    fun setDateKind(kind: DateFilterKind) = update { it.copy(dateKind = kind) }
-
-    fun setDateRange(startMs: Long?, endMs: Long?) = update { it.copy(dateStartMs = startMs, dateEndMs = endMs) }
-
-    fun setMissingOnly(on: Boolean) = update { it.copy(missingOnly = on) }
 
     fun clearFilters() {
         _filters.value = HistoryFilters.DEFAULT
