@@ -84,7 +84,40 @@
     <string name="sheet_cancel">Cancel</string>
 
     <string name="sec_encoding">Encoding</string>
+    <string name="sec_image_encoding">Photo encoding</string>
     <string name="sec_export">Export</string>
+
+    <!-- Image (photo) settings -->
+    <string name="img_preset_tab_video">Video</string>
+    <string name="img_preset_tab_photos">Photos</string>
+    <string name="img_tab_one_required">At least one of videos or photos must stay enabled.</string>
+    <string name="img_format">Output format</string>
+    <string name="img_quality">Quality</string>
+    <string name="img_quality_value">%1$d / 100</string>
+    <string name="img_jpeg_chroma">Keep full colour (4:4:4)</string>
+    <string name="img_png_depth">Bit depth</string>
+    <string name="img_png_depth_8">8-bit</string>
+    <string name="img_png_depth_16">16-bit</string>
+    <string name="img_png_compression">Compression (0 fastest, 9 smallest)</string>
+    <string name="img_avif_crf">AVIF quality (CRF, lower is better)</string>
+    <string name="img_avif_effort">AVIF effort (higher is slower)</string>
+    <string name="img_webp_lossless">Lossless WebP</string>
+    <string name="img_jxl_effort">JPEG XL effort (higher is smaller and slower)</string>
+    <string name="img_jxl_distance">JPEG XL distance (0 = lossless)</string>
+    <string name="img_jxl_distance_hint">1.0 ≈ visually lossless</string>
+    <string name="img_jxl_modular">Modular mode (UI shots, lossless)</string>
+    <string name="img_jxl_colorspace">Colour space</string>
+    <string name="img_jxl_colorspace_xyb">XYB (smaller)</string>
+    <string name="img_jxl_colorspace_srgb">sRGB (exact)</string>
+    <string name="img_jxl_depth">Bit depth</string>
+    <string name="img_jxl_depth_auto">Auto</string>
+    <string name="img_max_side">Limit short side (pixels, empty = keep)</string>
+    <string name="pill_video">Video</string>
+    <string name="pill_photos">Photos</string>
+    <string name="sheet_preset_kind_mismatch">Videos and photos are both selected — presets that handle only one kind are disabled.</string>
+    <string name="sheet_preset_cannot_compress">This preset cannot compress the selected files.</string>
+    <string name="err_animated_image">Animated images are not supported yet.</string>
+
     <string name="sec_advanced">Advanced</string>
     <string name="sec_command">Command</string>
     <string name="enc_video">Video codec</string>
@@ -331,6 +364,8 @@
     <string name="perm_open_settings">Open system settings</string>
     <string name="perm_videos">Your videos</string>
     <string name="perm_videos_why">Lets Squeeze find old and heavy videos, compress them where they are and replace the originals. Sharing and picking videos works without it.</string>
+    <string name="perm_images">Your photos</string>
+    <string name="perm_images_why">Lets Squeeze read photos from your library and save compressed copies next to them. Sharing and the photo picker work without it.</string>
     <string name="perm_location">Location in videos</string>
     <string name="perm_location_why">Lets "keep location" preserve the place a video was filmed. Without it the location is dropped.</string>
     <string name="perm_notifications">Notifications</string>

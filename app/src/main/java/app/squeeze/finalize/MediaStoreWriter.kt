@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Process
 import android.provider.MediaStore
+import app.squeeze.engine.MediaKind
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.io.IOException
@@ -20,18 +21,24 @@ import javax.inject.Singleton
 data class OriginalInfo(val relativePath: String?, val dateTakenMs: Long?)
 
 /**
- * The only class that writes videos into MediaStore: new rows (hidden with `IS_PENDING` until the
- * bytes are in), overwriting an existing row, and deleting one.
+ * The only class that writes media into MediaStore: new rows (hidden with `IS_PENDING` until the
+ * bytes are in), overwriting an existing row, and deleting one. Videos go into the video
+ * collection, photos into the image one; everything else about the flow is shared.
  */
 @Singleton
 class MediaStoreWriter @Inject constructor(@ApplicationContext private val context: Context) {
     private val resolver = context.contentResolver
-    private val collection: Uri = MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+
+    private fun collection(kind: MediaKind): Uri = when (kind) {
+        MediaKind.IMAGE -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        else -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+    }
 
     /** True when the user allowed "media management", which lifts the per-file consent dialogs. */
     fun canManageMedia(): Boolean = MediaStore.canManageMedia(context)
 
-    fun itemUri(mediaStoreId: Long): Uri = ContentUris.withAppendedId(collection, mediaStoreId)
+    fun itemUri(mediaStoreId: Long, kind: MediaKind = MediaKind.VIDEO): Uri =
+        ContentUris.withAppendedId(collection(kind), mediaStoreId)
 
     /**
      * Whether we may already write [uri] without asking the user: media management, an earlier
@@ -59,10 +66,10 @@ class MediaStoreWriter @Inject constructor(@ApplicationContext private val conte
     /** Consent dialog that deletes all [uris] once approved. */
     fun deleteRequest(uris: Collection<Uri>): IntentSender = MediaStore.createDeleteRequest(resolver, uris).intentSender
 
-    fun originalInfo(mediaStoreId: Long): OriginalInfo? =
+    fun originalInfo(mediaStoreId: Long, kind: MediaKind = MediaKind.VIDEO): OriginalInfo? =
         resolver.query(
-            itemUri(mediaStoreId),
-            arrayOf(MediaStore.Video.Media.RELATIVE_PATH, MediaStore.Video.Media.DATE_TAKEN),
+            itemUri(mediaStoreId, kind),
+            arrayOf(MediaStore.MediaColumns.RELATIVE_PATH, MediaStore.MediaColumns.DATE_TAKEN),
             null, null, null,
         )?.use { c ->
             if (!c.moveToFirst()) return null
@@ -78,18 +85,18 @@ class MediaStoreWriter @Inject constructor(@ApplicationContext private val conte
      * when it is published (and cannot be changed afterwards), so the date really comes from the
      * file's own `creation_time`, which "keep metadata" preserves.
      */
-    fun createCopy(source: File, displayName: String, relativePath: String?, mimeType: String, dateTakenMs: Long?): Uri {
-        val preferred = normalisePath(relativePath ?: FALLBACK_PATH)
+    fun createCopy(source: File, displayName: String, relativePath: String?, mimeType: String, dateTakenMs: Long?, kind: MediaKind = MediaKind.VIDEO): Uri {
+        val preferred = normalisePath(relativePath ?: fallbackPath(kind))
         val (uri, _) = try {
-            insertPending(displayName, preferred, mimeType, dateTakenMs)
+            insertPending(displayName, preferred, mimeType, dateTakenMs, kind)
         } catch (e: IllegalArgumentException) {
-            // The folder is not allowed for videos (Pictures/, Download/ ...).
-            insertPending(displayName, FALLBACK_PATH, mimeType, dateTakenMs)
+            // The folder is not allowed for this media kind (Pictures/ for videos, Download/ ...).
+            insertPending(displayName, fallbackPath(kind), mimeType, dateTakenMs, kind)
         }
         try {
             val out = resolver.openOutputStream(uri) ?: throw IOException("Cannot write $uri")
             out.use { stream -> source.inputStream().use { it.copyTo(stream) } }
-            resolver.update(uri, ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }, null, null)
+            resolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
         } catch (e: Exception) {
             resolver.delete(uri, null, null)
             throw e
@@ -97,23 +104,23 @@ class MediaStoreWriter @Inject constructor(@ApplicationContext private val conte
         return uri
     }
 
-    private fun insertPending(displayName: String, path: String, mimeType: String, dateTakenMs: Long?): Pair<Uri, String> {
-        val name = NameTemplate.uniqueName(displayName) { exists(it, path) }
+    private fun insertPending(displayName: String, path: String, mimeType: String, dateTakenMs: Long?, kind: MediaKind): Pair<Uri, String> {
+        val name = NameTemplate.uniqueName(displayName) { exists(it, path, kind) }
         val values = ContentValues().apply {
-            put(MediaStore.Video.Media.DISPLAY_NAME, name)
-            put(MediaStore.Video.Media.MIME_TYPE, mimeType)
-            put(MediaStore.Video.Media.RELATIVE_PATH, path)
-            put(MediaStore.Video.Media.IS_PENDING, 1)
-            dateTakenMs?.let { put(MediaStore.Video.Media.DATE_TAKEN, it) }
+            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+            put(MediaStore.MediaColumns.RELATIVE_PATH, path)
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
+            dateTakenMs?.let { put(MediaStore.MediaColumns.DATE_TAKEN, it) }
         }
-        val uri = resolver.insert(collection, values) ?: throw IOException("MediaStore refused $name")
+        val uri = resolver.insert(collection(kind), values) ?: throw IOException("MediaStore refused $name")
         return uri to name
     }
 
-    private fun exists(name: String, path: String): Boolean =
+    private fun exists(name: String, path: String, kind: MediaKind): Boolean =
         resolver.query(
-            collection, arrayOf(MediaStore.Video.Media._ID),
-            "${MediaStore.Video.Media.DISPLAY_NAME} = ? AND ${MediaStore.Video.Media.RELATIVE_PATH} = ?",
+            collection(kind), arrayOf(MediaStore.MediaColumns._ID),
+            "${MediaStore.MediaColumns.DISPLAY_NAME} = ? AND ${MediaStore.MediaColumns.RELATIVE_PATH} = ?",
             arrayOf(name, path), null,
         )?.use { it.count > 0 } ?: false
 
@@ -163,7 +170,7 @@ class MediaStoreWriter @Inject constructor(@ApplicationContext private val conte
     }
 
     fun displayName(uri: Uri): String? =
-        resolver.query(uri, arrayOf(MediaStore.Video.Media.DISPLAY_NAME), null, null, null)?.use { c ->
+        resolver.query(uri, arrayOf(MediaStore.MediaColumns.DISPLAY_NAME), null, null, null)?.use { c ->
             if (c.moveToFirst()) c.getString(0) else null
         }
 
@@ -180,18 +187,24 @@ class MediaStoreWriter @Inject constructor(@ApplicationContext private val conte
      */
     fun rename(uri: Uri, displayName: String): String {
         val (current, path) = resolver.query(
-            uri, arrayOf(MediaStore.Video.Media.DISPLAY_NAME, MediaStore.Video.Media.RELATIVE_PATH), null, null, null,
+            uri, arrayOf(MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.RELATIVE_PATH), null, null, null,
         )?.use { c -> if (c.moveToFirst()) c.getString(0) to c.getString(1) else null } ?: throw IOException("$uri is gone")
         if (current == displayName) return current
-        val name = NameTemplate.uniqueName(displayName) { it != current && exists(it, path) }
-        val values = ContentValues().apply { put(MediaStore.Video.Media.DISPLAY_NAME, name) }
+        val name = NameTemplate.uniqueName(displayName) { it != current && exists(it, path, MediaKind.VIDEO) }
+        val values = ContentValues().apply { put(MediaStore.MediaColumns.DISPLAY_NAME, name) }
         if (resolver.update(uri, values, null, null) == 0) throw IOException("Could not rename $uri")
         return name
     }
 
     private fun normalisePath(path: String) = if (path.endsWith("/")) path else "$path/"
 
+    private fun fallbackPath(kind: MediaKind) = when (kind) {
+        MediaKind.IMAGE -> FALLBACK_PATH_IMAGES
+        else -> FALLBACK_PATH
+    }
+
     companion object {
         const val FALLBACK_PATH = "Movies/Squeeze/"
+        const val FALLBACK_PATH_IMAGES = "Pictures/Squeeze/"
     }
 }

@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -26,6 +27,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -33,6 +35,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.squeeze.R
+import app.squeeze.engine.MediaKind
+import app.squeeze.ui.Pill
 import app.squeeze.engine.ParamOptions.label
 import app.squeeze.engine.Preset
 import app.squeeze.engine.RateControl
@@ -101,7 +105,13 @@ private fun Header(text: String) =
 private fun PresetRow(preset: Preset, isDefault: Boolean, onEdit: (String) -> Unit, onDefault: (String) -> Unit) {
     ListItem(
         modifier = Modifier.clickable { onEdit(preset.id) },
-        headlineContent = { Text(preset.name) },
+        headlineContent = {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(preset.name, Modifier.weight(1f, fill = false))
+                if (MediaKind.VIDEO in preset.kinds) Pill(stringResource(R.string.pill_video))
+                if (MediaKind.IMAGE in preset.kinds) Pill(stringResource(R.string.pill_photos))
+            }
+        },
         supportingContent = { Text(summary(preset)) },
         trailingContent = {
             IconButton(onClick = { onDefault(preset.id) }) {
@@ -116,7 +126,14 @@ private fun PresetRow(preset: Preset, isDefault: Boolean, onEdit: (String) -> Un
 }
 
 private fun summary(p: Preset): String {
-    val params = p.params
+    val params = p.params ?: run {
+        val ip = p.imageParams
+        return buildList {
+            add(ip?.format?.name?.lowercase()?.replace('_', ' ')?.replaceFirstChar { it.uppercase() } ?: "photos")
+            ip?.quality?.let { add("Q$it") }
+            ip?.maxShortSide?.let { add("${it}p") }
+        }.joinToString(" · ")
+    }
     val parts = buildList {
         add(params.videoCodec.label())
         when (val r = params.rateControl) {

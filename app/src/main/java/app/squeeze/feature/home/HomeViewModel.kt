@@ -105,7 +105,9 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun estimate(preset: Preset, video: VideoInfo): Long? =
-        SizeEstimator.estimateBytes(preset.params, SourceInfo(durationMs = video.durationMs, width = video.width, height = video.height), video.sizeBytes)
+        preset.params?.let { params ->
+            SizeEstimator.estimateBytes(params, SourceInfo(durationMs = video.durationMs, width = video.width, height = video.height), video.sizeBytes)
+        }
 
     private fun totals(period: StatsPeriod): StateFlow<StatTotals?> =
         history.observeStats(period).map<_, StatTotals?> { it.total }.state(null)

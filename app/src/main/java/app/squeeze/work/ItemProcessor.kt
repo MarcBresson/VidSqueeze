@@ -14,11 +14,18 @@ import app.squeeze.engine.EncodeProgress
 import app.squeeze.engine.FfmpegCommandBuilder
 import app.squeeze.engine.FfmpegKitEngine
 import app.squeeze.engine.HardwareEncoderProbe
+import app.squeeze.engine.ImageEncodeRequest
+import app.squeeze.engine.ImageEncodeResult
+import app.squeeze.engine.ImageEngines
+import app.squeeze.engine.ImageFormat
 import app.squeeze.engine.Issue
+import app.squeeze.engine.MediaKind
 import app.squeeze.engine.Preset
 import app.squeeze.engine.RunResult
 import app.squeeze.engine.Severity
 import app.squeeze.finalize.FinalizePlanner
+import app.squeeze.finalize.MetadataCopier
+import app.squeeze.finalize.MetadataFilter
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.time.LocalDate
@@ -38,6 +45,8 @@ class ItemProcessor @Inject constructor(
     private val engine: FfmpegKitEngine,
     private val current: CurrentJob,
     private val hardware: HardwareEncoderProbe,
+    private val imageEngines: ImageEngines,
+    private val metadata: MetadataCopier,
     private val logs: LogStore = LogStore(context),
 ) {
     val stagingDir get() = File(context.filesDir, "staging")
@@ -52,15 +61,18 @@ class ItemProcessor @Inject constructor(
         onProbed: suspend (durationMs: Long) -> Unit,
         onProgress: (EncodeProgress) -> Unit,
     ): ItemOutcome {
+        if (item.kind == MediaKind.IMAGE) return processImage(item, preset, onProbed, onProgress)
         var output: File? = null
         try {
             val uri = readUri(item, preset)
+            // Dual presets carry both params blocks; the item's kind decides which applies.
+            val videoParams = preset.params ?: return ItemOutcome.Failed("This preset cannot compress videos.", null)
             val source = engine.probe(engine.inputFor(uri), item.displayName.substringAfterLast('.', ""))
                 ?: return ItemOutcome.Failed("Could not read a video stream from this file.", null)
             onProbed(source.durationMs)
             if (current.isCancelRequested) return ItemOutcome.Cancelled
 
-            val container = CodecContainerMatrix.resolveContainer(preset.params, source)
+            val container = CodecContainerMatrix.resolveContainer(videoParams, source)
             val extension = container.container?.extension
                 ?: return ItemOutcome.Failed(container.issues.errorText(), null)
             // The final file name is the file's name in staging, so resharing shows a proper name.
@@ -69,7 +81,7 @@ class ItemProcessor @Inject constructor(
 
             // SAF parameters are single use: the probe consumed the first one.
             val build = FfmpegCommandBuilder.build(
-                preset.params, source, engine.inputFor(uri), output.absolutePath, preset.export,
+                videoParams, source, engine.inputFor(uri), output.absolutePath, preset.export,
                 BuildOptions(hardware = hardware.encoders),
             )
             val command = when (build) {
@@ -99,6 +111,90 @@ class ItemProcessor @Inject constructor(
             // The original is never replaced by a bigger file (unknown original size: keep the result).
             if (item.originalSize in 1..size) return ItemOutcome.NoGain(size, shown, source.durationMs)
             val done = ItemOutcome.Done(output, size, shown, source.durationMs)
+            output = null
+            return done
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return ItemOutcome.Failed(e.message ?: e.javaClass.simpleName, null)
+        } finally {
+            output?.delete()
+        }
+    }
+
+    /** The still-image branch of [process]: probe, pre-read EXIF, encode, then copy metadata. */
+    private suspend fun processImage(
+        item: BatchItemEntity,
+        preset: Preset,
+        onProbed: suspend (durationMs: Long) -> Unit,
+        onProgress: (EncodeProgress) -> Unit,
+    ): ItemOutcome {
+        var output: File? = null
+        try {
+            val imageParams = preset.imageParams
+                ?: return ItemOutcome.Failed("This preset cannot compress photos.", null)
+            val uri = readUri(item, preset)
+            val input = engine.inputFor(uri)
+            val source = engine.probe(input, item.displayName.substringAfterLast('.', ""))
+                ?: return ItemOutcome.Failed("Could not read this image.", null)
+            // Decision: animated image inputs are rejected, not silently truncated to one frame.
+            if (source.frameCount > 1) return ItemOutcome.Failed("Animated images are not supported yet.", null)
+            onProbed(source.durationMs)
+            if (current.isCancelRequested) return ItemOutcome.Cancelled
+
+            val name = FinalizePlanner.copyName(preset, item.displayName, imageParams.format.extension, LocalDate.now())
+            output = File(stagingDir, "${item.batchId}/${item.id}/$name").also { it.parentFile?.mkdirs() }
+
+            val exif = metadata.readSource(item.sourceUri.toUri())
+            val filtered = exif?.tags?.let {
+                MetadataFilter.filter(it, preset.export.keepExif, preset.export.keepLocation)
+            } ?: emptyMap()
+            val keepMetadata = filtered.isNotEmpty()
+
+            val log = logs.open(item.id, imageEngines.describe(imageParams))
+            val result = try {
+                imageEngines.encode(
+                    ImageEncodeRequest(
+                        input = input,
+                        sourceUri = uri,
+                        output = output,
+                        params = imageParams,
+                        source = source,
+                        orientationDegrees = exif?.orientationDegrees ?: 0,
+                        exifBytes = null, // JXL takes a raw TIFF block ExifInterface cannot produce (see MetadataCopier)
+                        onLog = log::append,
+                        onProgress = { f -> onProgress(EncodeProgress(0, 0, 0.0, f)) },
+                    ),
+                )
+            } finally {
+                log.close()
+            }
+            when (result) {
+                ImageEncodeResult.Cancelled -> {
+                    logs.delete(item.id)
+                    return ItemOutcome.Cancelled
+                }
+                is ImageEncodeResult.Failed -> return ItemOutcome.Failed(result.message, imageEngines.describe(imageParams))
+                ImageEncodeResult.Success -> Unit
+            }
+
+            // Metadata copy is best-effort: a format that cannot carry EXIF only logs a note.
+            val metadataNote = when {
+                imageParams.format == ImageFormat.JPEG_XL && keepMetadata ->
+                    "NOTE: JPEG XL output does not carry this photo's EXIF yet."
+                imageParams.format in listOf(ImageFormat.PNG, ImageFormat.AVIF) && keepMetadata ->
+                    "NOTE: ${imageParams.format} output cannot carry EXIF in this app."
+                else -> null
+            }
+            if (metadataNote != null) logs.append(item.id, metadataNote)
+            if (!metadata.copyTo(output, exif?.tags ?: emptyMap(), preset.export.keepExif, preset.export.keepLocation)) {
+                logs.append(item.id, "NOTE: the photo metadata could not be copied to the output.")
+            }
+
+            val size = output.length()
+            if (size <= 0) return ItemOutcome.Failed("The encoder produced an empty file.", imageEngines.describe(imageParams))
+            if (item.originalSize in 1..size) return ItemOutcome.NoGain(size, imageEngines.describe(imageParams), source.durationMs)
+            val done = ItemOutcome.Done(output, size, imageEngines.describe(imageParams), source.durationMs)
             output = null
             return done
         } catch (e: CancellationException) {

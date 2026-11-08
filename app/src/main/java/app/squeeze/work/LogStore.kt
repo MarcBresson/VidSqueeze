@@ -42,6 +42,14 @@ class LogStore(private val dir: File, private val maxBytes: Long) {
         file(itemId).delete()
     }
 
+    /** Appends a note to an existing log (best-effort: silently ignored when the log is gone). */
+    fun append(itemId: Long, line: String) {
+        val f = file(itemId)
+        if (!f.isFile) return
+        val remaining = (maxBytes - f.length()).coerceAtLeast(0)
+        if (remaining > line.length + 1) f.appendText(line + "\n")
+    }
+
     companion object {
         const val MAX_BYTES = 256L * 1024
     }

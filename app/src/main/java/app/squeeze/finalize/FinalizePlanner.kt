@@ -73,7 +73,7 @@ object FinalizePlanner {
                 outputFormat = outputExtension,
                 presetName = preset.name,
                 date = today,
-                resolution = resolutionLabel(preset.params.maxShortSide),
+                resolution = resolutionLabel(preset.params?.maxShortSide),
             ),
         )
 
@@ -83,6 +83,11 @@ object FinalizePlanner {
         "webm" -> "video/webm"
         "mov" -> "video/quicktime"
         "avi" -> "video/x-msvideo"
+        "jpg", "jpeg" -> "image/jpeg"
+        "png" -> "image/png"
+        "avif" -> "image/avif"
+        "jxl" -> "image/jxl"
+        "webp" -> "image/webp"
         else -> "video/*"
     }
 }
@@ -97,6 +102,14 @@ object OutputVerifier {
         output.videoCodec == null || !output.dimensionsKnown -> "The compressed file has no video."
         expectedDurationMs > 0 && kotlin.math.abs(output.durationMs - expectedDurationMs) > DURATION_TOLERANCE_MS ->
             "The compressed file has a different length (${output.durationMs / 1000} s instead of ${expectedDurationMs / 1000} s)."
+        else -> null
+    }
+
+    /** Image variant: the file must decode as a still frame; duration is meaningless for it. */
+    fun imageProblem(output: SourceInfo?): String? = when {
+        output == null -> "The compressed image can't be read."
+        output.videoCodec == null || !output.dimensionsKnown -> "The compressed file has no image."
+        output.frameCount > 1 -> "The compressed file is animated."
         else -> null
     }
 }

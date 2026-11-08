@@ -90,11 +90,13 @@ class AutoRunner @Inject constructor(
         val byId = all.associateBy { it.id }
         return CandidateSelector.select(videos, effective, now, skip).mapNotNull { candidate ->
             val base = override ?: byId[candidate.tier.presetId] ?: return@mapNotNull null
+            // Auto compression stays video-only: a photos-only preset can never run here.
+            if (base.params == null) return@mapNotNull null
             val export = base.export.copy(mode = options?.exportModeOverride ?: effective.exportMode)
             val preset = base.copy(export = export)
             val v = candidate.video
             val info = SourceInfo(durationMs = v.durationMs, width = v.width, height = v.height)
-            PlannedVideo(v, preset, SizeEstimator.estimateBytes(preset.params, info, v.sizeBytes))
+            PlannedVideo(v, preset, preset.params?.let { SizeEstimator.estimateBytes(it, info, v.sizeBytes) })
         }
     }
 

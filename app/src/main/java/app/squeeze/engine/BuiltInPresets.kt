@@ -25,6 +25,7 @@ object BuiltInPresets {
             maxShortSide = 720,
             container = Container.MP4,
         ),
+        imageParams = ImageParams(format = ImageFormat.JPEG, quality = 85),
         export = ExportOptions(keepLocation = false),
     )
 
@@ -37,6 +38,7 @@ object BuiltInPresets {
             rateControl = RateControl.Crf(26),
             maxShortSide = 1080,
         ),
+        imageParams = ImageParams(format = ImageFormat.AVIF, avifCrf = 30, avifEffort = 6),
     )
 
     val maxSavings = Preset(
@@ -50,6 +52,7 @@ object BuiltInPresets {
             maxShortSide = 720,
             fpsMax = 24,
         ),
+        imageParams = ImageParams(format = ImageFormat.WEBP, quality = 75),
     )
 
     val losslessIsh = Preset(

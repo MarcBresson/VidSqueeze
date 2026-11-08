@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.FilterChip
@@ -36,6 +38,10 @@ import app.squeeze.engine.EncoderPreset
 import app.squeeze.engine.ExportMode
 import app.squeeze.engine.FfmpegParams
 import app.squeeze.engine.HardwareEncoders
+import app.squeeze.engine.ImageFormat
+import app.squeeze.engine.ImageParams
+import app.squeeze.engine.JxlColorspace
+import app.squeeze.engine.MediaKind
 import app.squeeze.engine.ParamOptions
 import app.squeeze.engine.ParamOptions.label
 import app.squeeze.engine.PixelFormat
@@ -50,8 +56,39 @@ import java.time.LocalDate
 /** Encoding and export settings of a preset. Used by the compression sheet and the preset editor. */
 @Composable
 fun PresetForm(ui: SheetUi, vm: CompressionSheetViewModel, modifier: Modifier = Modifier) {
+    var tab by rememberSaveable { mutableStateOf(0) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        EncodingSection(ui.draft.params, ui.hardware, vm)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Choice(
+                selected = tab == 0,
+                label = stringResource(R.string.img_preset_tab_video),
+                enabled = ui.draft.params != null,
+                onClick = { tab = 0 },
+            )
+            Switch(
+                checked = ui.draft.params != null,
+                onCheckedChange = { vm.setKindEnabled(MediaKind.VIDEO, it) },
+            )
+            Spacer(Modifier.width(12.dp))
+            Choice(
+                selected = tab == 1,
+                label = stringResource(R.string.img_preset_tab_photos),
+                enabled = ui.draft.imageParams != null,
+                onClick = { tab = 1 },
+            )
+            Switch(
+                checked = ui.draft.imageParams != null,
+                onCheckedChange = { vm.setKindEnabled(MediaKind.IMAGE, it) },
+            )
+        }
+        if (ui.draft.params == null && ui.draft.imageParams == null) {
+            Note(stringResource(R.string.img_tab_one_required), error = true)
+        }
+        if (tab == 0) {
+            ui.draft.params?.let { EncodingSection(it, ui.hardware, vm) }
+        } else {
+            ui.draft.imageParams?.let { ImageEncodingSection(it, vm) }
+        }
         ExportSection(ui, vm)
     }
 }
@@ -95,13 +132,13 @@ private fun EncodingSection(p: FfmpegParams, hardware: HardwareEncoders, vm: Com
     Chips {
         VideoCodec.entries.forEach { c ->
             Choice(p.videoCodec == c && !hw, c.label()) {
-                vm.editParams { ParamOptions.withEncoder(it, c, EncoderKind.SOFTWARE, hardware) }
+                vm.editVideoParams { ParamOptions.withEncoder(it, c, EncoderKind.SOFTWARE, hardware) }
             }
         }
         // Only the hardware encoders this device really has.
         hardware.codecs.forEach { c ->
             Choice(p.videoCodec == c && hw, stringResource(R.string.enc_codec_hw, c.label())) {
-                vm.editParams { ParamOptions.withEncoder(it, c, EncoderKind.HARDWARE_MEDIACODEC, hardware) }
+                vm.editVideoParams { ParamOptions.withEncoder(it, c, EncoderKind.HARDWARE_MEDIACODEC, hardware) }
             }
         }
     }
@@ -118,7 +155,7 @@ private fun EncodingSection(p: FfmpegParams, hardware: HardwareEncoders, vm: Com
             Label(stringResource(R.string.enc_speed, p.encoderPreset.ffName))
             Slider(
                 value = p.encoderPreset.ordinal.toFloat(),
-                onValueChange = { v -> vm.editParams { it.copy(encoderPreset = EncoderPreset.entries[v.toInt()]) } },
+                onValueChange = { v -> vm.editVideoParams { it.copy(encoderPreset = EncoderPreset.entries[v.toInt()]) } },
                 valueRange = 0f..(EncoderPreset.entries.size - 1).toFloat(),
                 steps = EncoderPreset.entries.size - 2,
             )
@@ -148,7 +185,7 @@ private fun RateSection(p: FfmpegParams, hardware: HardwareEncoders, vm: Compres
                     RateMode.PERCENT -> R.string.enc_mode_percent
                 }
                 Choice(mode == m, stringResource(label), enabled = ParamOptions.isRateModeAvailable(p, m, hardware)) {
-                    vm.editParams { ParamOptions.withRateMode(it, m, hardware) }
+                    vm.editVideoParams { ParamOptions.withRateMode(it, m, hardware) }
                 }
             }
         }
@@ -167,28 +204,28 @@ private fun RateSection(p: FfmpegParams, hardware: HardwareEncoders, vm: Compres
             Text(stringResource(R.string.enc_crf_value, rate.value, stringResource(hint)))
             Slider(
                 value = rate.value.toFloat(),
-                onValueChange = { v -> vm.editParams { it.copy(rateControl = RateControl.Crf(v.toInt())) } },
+                onValueChange = { v -> vm.editVideoParams { it.copy(rateControl = RateControl.Crf(v.toInt())) } },
                 valueRange = range.first.toFloat()..range.last.toFloat(),
             )
         }
         is RateControl.BitrateKbps -> NumberField(
             stringResource(R.string.enc_bitrate_label), rate.kbps, 50..200_000,
-        ) { v -> vm.editParams { it.copy(rateControl = RateControl.BitrateKbps(v)) } }
+        ) { v -> vm.editVideoParams { it.copy(rateControl = RateControl.BitrateKbps(v)) } }
         is RateControl.PercentOfSource -> NumberField(
             stringResource(R.string.enc_percent_label), rate.percent, 5..100,
-        ) { v -> vm.editParams { it.copy(rateControl = RateControl.PercentOfSource(v)) } }
+        ) { v -> vm.editVideoParams { it.copy(rateControl = RateControl.PercentOfSource(v)) } }
         is RateControl.ConstantQuality -> {
             val range = hardware[p.videoCodec]?.qualityRange
             if (range != null && range.first < range.last) {
                 Text(stringResource(R.string.enc_quality_value, rate.value, range.last))
                 Slider(
                     value = rate.value.toFloat(),
-                    onValueChange = { v -> vm.editParams { it.copy(rateControl = RateControl.ConstantQuality(v.toInt())) } },
+                    onValueChange = { v -> vm.editVideoParams { it.copy(rateControl = RateControl.ConstantQuality(v.toInt())) } },
                     valueRange = range.first.coerceAtLeast(1).toFloat()..range.last.toFloat(),
                 )
             } else {
                 NumberField(stringResource(R.string.enc_mode_quality), rate.value, 1..100) { v ->
-                    vm.editParams { it.copy(rateControl = RateControl.ConstantQuality(v)) }
+                    vm.editVideoParams { it.copy(rateControl = RateControl.ConstantQuality(v)) }
                 }
             }
             Note(stringResource(R.string.enc_cq_note))
@@ -200,9 +237,9 @@ private fun RateSection(p: FfmpegParams, hardware: HardwareEncoders, vm: Compres
 private fun FrameRateAndResolution(p: FfmpegParams, vm: CompressionSheetViewModel) {
     Label(stringResource(R.string.enc_fps))
     Chips {
-        Choice(p.fpsMax == null, stringResource(R.string.enc_fps_keep)) { vm.editParams { it.copy(fpsMax = null) } }
+        Choice(p.fpsMax == null, stringResource(R.string.enc_fps_keep)) { vm.editVideoParams { it.copy(fpsMax = null) } }
         ParamOptions.FPS_CHOICES.forEach { f ->
-            Choice(p.fpsMax == f, stringResource(R.string.enc_fps_value, f)) { vm.editParams { it.copy(fpsMax = f) } }
+            Choice(p.fpsMax == f, stringResource(R.string.enc_fps_value, f)) { vm.editVideoParams { it.copy(fpsMax = f) } }
         }
     }
     Note(stringResource(R.string.enc_fps_note))
@@ -213,22 +250,22 @@ private fun FrameRateAndResolution(p: FfmpegParams, vm: CompressionSheetViewMode
     Chips {
         Choice(p.maxShortSide == null, stringResource(R.string.enc_resolution_original)) {
             customOpen = false
-            vm.editParams { it.copy(maxShortSide = null) }
+            vm.editVideoParams { it.copy(maxShortSide = null) }
         }
         ParamOptions.RESOLUTIONS.forEach { r ->
             Choice(p.maxShortSide == r, stringResource(R.string.enc_resolution_value, r)) {
                 customOpen = false
-                vm.editParams { it.copy(maxShortSide = r) }
+                vm.editVideoParams { it.copy(maxShortSide = r) }
             }
         }
         Choice(custom || customOpen, stringResource(R.string.enc_resolution_custom)) {
             customOpen = true
-            if (p.maxShortSide == null || p.maxShortSide in ParamOptions.RESOLUTIONS) vm.editParams { it.copy(maxShortSide = 540) }
+            if (p.maxShortSide == null || p.maxShortSide in ParamOptions.RESOLUTIONS) vm.editVideoParams { it.copy(maxShortSide = 540) }
         }
     }
     if (custom || customOpen) {
         NumberField(stringResource(R.string.enc_resolution_custom), p.maxShortSide ?: 540, 120..4320) { v ->
-            vm.editParams { it.copy(maxShortSide = v) }
+            vm.editVideoParams { it.copy(maxShortSide = v) }
         }
     }
 }
@@ -240,14 +277,14 @@ private fun AudioSection(p: FfmpegParams, vm: CompressionSheetViewModel) {
         AudioCodec.entries.forEach { a ->
             val allowed = a == AudioCodec.COPY || p.container == Container.ORIGINAL ||
                 a in CodecContainerMatrix.audioCodecsFor(p.container)
-            Choice(p.audioCodec == a, a.label(), enabled = allowed) { vm.editParams { it.copy(audioCodec = a) } }
+            Choice(p.audioCodec == a, a.label(), enabled = allowed) { vm.editVideoParams { it.copy(audioCodec = a) } }
         }
     }
     if (p.audioCodec != AudioCodec.COPY) {
         Text(stringResource(R.string.enc_audio_bitrate, p.audioBitrateK))
         Chips {
             ParamOptions.AUDIO_BITRATES.forEach { b ->
-                Choice(p.audioBitrateK == b, "$b") { vm.editParams { it.copy(audioBitrateK = b) } }
+                Choice(p.audioBitrateK == b, "$b") { vm.editVideoParams { it.copy(audioBitrateK = b) } }
             }
         }
     }
@@ -261,7 +298,7 @@ private fun ContainerSection(p: FfmpegParams, vm: CompressionSheetViewModel) {
         Container.entries.forEach { c ->
             val label = if (c == Container.ORIGINAL) stringResource(R.string.enc_container_original) else c.extension.uppercase()
             Choice(p.container == c, label, enabled = ParamOptions.containerDisabledReason(c, p) == null) {
-                vm.editParams { it.copy(container = c) }
+                vm.editVideoParams { it.copy(container = c) }
             }
         }
     }
@@ -277,13 +314,13 @@ private fun AdvancedSection(p: FfmpegParams, vm: CompressionSheetViewModel) {
     Label(stringResource(R.string.enc_dynamic_range))
     Chips {
         Choice(p.dynamicRange == DynamicRange.AUTO_SDR_IF_UNSUPPORTED, stringResource(R.string.enc_hdr_auto)) {
-            vm.editParams { it.copy(dynamicRange = DynamicRange.AUTO_SDR_IF_UNSUPPORTED) }
+            vm.editVideoParams { it.copy(dynamicRange = DynamicRange.AUTO_SDR_IF_UNSUPPORTED) }
         }
         Choice(p.dynamicRange == DynamicRange.KEEP, stringResource(R.string.enc_hdr_keep)) {
-            vm.editParams { it.copy(dynamicRange = DynamicRange.KEEP) }
+            vm.editVideoParams { it.copy(dynamicRange = DynamicRange.KEEP) }
         }
         Choice(p.dynamicRange == DynamicRange.FORCE_SDR, stringResource(R.string.enc_hdr_sdr)) {
-            vm.editParams { it.copy(dynamicRange = DynamicRange.FORCE_SDR) }
+            vm.editVideoParams { it.copy(dynamicRange = DynamicRange.FORCE_SDR) }
         }
     }
 
@@ -295,13 +332,13 @@ private fun AdvancedSection(p: FfmpegParams, vm: CompressionSheetViewModel) {
                 PixelFormat.KEEP_SOURCE -> stringResource(R.string.enc_pix_keep)
                 else -> f.ffName.orEmpty()
             }
-            Choice(p.pixelFormat == f, label) { vm.editParams { it.copy(pixelFormat = f) } }
+            Choice(p.pixelFormat == f, label) { vm.editVideoParams { it.copy(pixelFormat = f) } }
         }
     }
 
     OutlinedTextField(
         value = p.customArgs,
-        onValueChange = { v -> vm.editParams { it.copy(customArgs = v) } },
+        onValueChange = { v -> vm.editVideoParams { it.copy(customArgs = v) } },
         label = { Text(stringResource(R.string.enc_custom_args)) },
         supportingText = { Text(stringResource(R.string.enc_custom_args_hint)) },
         modifier = Modifier.fillMaxWidth(),
@@ -309,10 +346,144 @@ private fun AdvancedSection(p: FfmpegParams, vm: CompressionSheetViewModel) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Switch(
             checked = p.customArgsReplaceGenerated,
-            onCheckedChange = { v -> vm.editParams { it.copy(customArgsReplaceGenerated = v) } },
+            onCheckedChange = { v -> vm.editVideoParams { it.copy(customArgsReplaceGenerated = v) } },
         )
         Text(stringResource(R.string.enc_custom_replace), style = MaterialTheme.typography.bodyMedium)
     }
+}
+
+@Composable
+private fun ImageEncodingSection(p: ImageParams, vm: CompressionSheetViewModel) {
+    SectionTitle(stringResource(R.string.sec_image_encoding))
+    Label(stringResource(R.string.img_format))
+    Chips {
+        ImageFormat.entries.forEach { format ->
+            Choice(
+                selected = p.format == format,
+                label = format.name.removePrefix("JPEG_").replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() },
+                onClick = { vm.editImageParams { it.copy(format = format) } },
+            )
+        }
+    }
+    when (p.format) {
+        ImageFormat.JPEG -> {
+            QualitySlider(p.quality) { q -> vm.editImageParams { it.copy(quality = q) } }
+            Chips {
+                Choice(
+                    selected = p.jpegChroma444,
+                    label = stringResource(R.string.img_jpeg_chroma),
+                    onClick = { vm.editImageParams { it.copy(jpegChroma444 = !it.jpegChroma444) } },
+                )
+            }
+        }
+        ImageFormat.PNG -> {
+            Label(stringResource(R.string.img_png_depth))
+            Chips {
+                Choice(selected = p.pngBitDepth == 8, label = stringResource(R.string.img_png_depth_8), onClick = { vm.editImageParams { it.copy(pngBitDepth = 8) } })
+                Choice(selected = p.pngBitDepth == 16, label = stringResource(R.string.img_png_depth_16), onClick = { vm.editImageParams { it.copy(pngBitDepth = 16) } })
+            }
+            Label(stringResource(R.string.img_png_compression))
+            NumberField(stringResource(R.string.img_png_compression), p.pngCompression, 0..9) { v ->
+                vm.editImageParams { it.copy(pngCompression = v) }
+            }
+        }
+        ImageFormat.WEBP -> {
+            QualitySlider(p.quality) { q -> vm.editImageParams { it.copy(quality = q) } }
+            Chips {
+                Choice(
+                    selected = p.webpLossless,
+                    label = stringResource(R.string.img_webp_lossless),
+                    onClick = { vm.editImageParams { it.copy(webpLossless = !it.webpLossless) } },
+                )
+            }
+        }
+        ImageFormat.AVIF -> {
+            Label(stringResource(R.string.img_avif_crf))
+            Slider(
+                value = p.avifCrf.toFloat(),
+                onValueChange = { v -> vm.editImageParams { it.copy(avifCrf = v.toInt()) } },
+                valueRange = 0f..63f,
+                steps = 62,
+            )
+            Label(stringResource(R.string.img_avif_effort))
+            NumberField(stringResource(R.string.img_avif_effort), p.avifEffort, 0..8) { v ->
+                vm.editImageParams { it.copy(avifEffort = v) }
+            }
+        }
+        ImageFormat.JPEG_XL -> {
+            val jxl = p.jxl
+            Label(stringResource(R.string.img_jxl_effort))
+            NumberField(stringResource(R.string.img_jxl_effort), jxl.effort, 1..9) { v ->
+                vm.editImageParams { it.copy(jxl = it.jxl.copy(effort = v)) }
+            }
+            Label(stringResource(R.string.img_jxl_distance))
+            OutlinedTextField(
+                value = jxl.distance.toString(),
+                onValueChange = { text ->
+                    text.toDoubleOrNull()?.takeIf { it in 0.0..7.0 }?.let { d ->
+                        vm.editImageParams { it.copy(jxl = it.jxl.copy(distance = d)) }
+                    }
+                },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                supportingText = { Text(stringResource(R.string.img_jxl_distance_hint)) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Chips {
+                Choice(
+                    selected = jxl.modular,
+                    label = stringResource(R.string.img_jxl_modular),
+                    onClick = { vm.editImageParams { it.copy(jxl = it.jxl.copy(modular = !it.jxl.modular)) } },
+                )
+            }
+            Label(stringResource(R.string.img_jxl_colorspace))
+            Chips {
+                Choice(
+                    selected = jxl.colorspace == JxlColorspace.XYB,
+                    label = stringResource(R.string.img_jxl_colorspace_xyb),
+                    onClick = { vm.editImageParams { it.copy(jxl = it.jxl.copy(colorspace = JxlColorspace.XYB)) } },
+                )
+                Choice(
+                    selected = jxl.colorspace == JxlColorspace.SRGB,
+                    label = stringResource(R.string.img_jxl_colorspace_srgb),
+                    onClick = { vm.editImageParams { it.copy(jxl = it.jxl.copy(colorspace = JxlColorspace.SRGB)) } },
+                )
+            }
+            Label(stringResource(R.string.img_jxl_depth))
+            Chips {
+                Choice(selected = jxl.bitDepth == 0, label = stringResource(R.string.img_jxl_depth_auto), onClick = { vm.editImageParams { it.copy(jxl = it.jxl.copy(bitDepth = 0)) } })
+                Choice(selected = jxl.bitDepth == 8, label = "8", onClick = { vm.editImageParams { it.copy(jxl = it.jxl.copy(bitDepth = 8)) } })
+                Choice(selected = jxl.bitDepth == 16, label = "16", onClick = { vm.editImageParams { it.copy(jxl = it.jxl.copy(bitDepth = 16)) } })
+                Choice(selected = jxl.bitDepth == 32, label = "float", onClick = { vm.editImageParams { it.copy(jxl = it.jxl.copy(bitDepth = 32)) } })
+            }
+        }
+    }
+    ImageMaxSide(p, vm)
+}
+
+@Composable
+private fun QualitySlider(quality: Int, onValue: (Int) -> Unit) {
+    Label(stringResource(R.string.img_quality))
+    Text(stringResource(R.string.img_quality_value, quality), style = MaterialTheme.typography.labelLarge)
+    Slider(
+        value = quality.toFloat(),
+        onValueChange = { onValue(it.toInt().coerceIn(1, 100)) },
+        valueRange = 1f..100f,
+    )
+}
+
+@Composable
+private fun ImageMaxSide(p: ImageParams, vm: CompressionSheetViewModel) {
+    var text by rememberSaveable(p.maxShortSide) { mutableStateOf(p.maxShortSide?.toString().orEmpty()) }
+    OutlinedTextField(
+        value = text,
+        onValueChange = { value ->
+            text = value.filter { it.isDigit() }.take(5)
+            vm.editImageParams { it.copy(maxShortSide = text.toIntOrNull()) }
+        },
+        label = { Text(stringResource(R.string.img_max_side)) },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable
@@ -389,7 +560,7 @@ private fun namePreview(ui: SheetUi): String {
     val p = ui.draft.params
     val source = ui.source
     val container = ui.preview.container
-    val resolution = p.maxShortSide?.let { "${it}p" } ?: "original"
+    val resolution = p?.maxShortSide?.let { "${it}p" } ?: "original"
     return NameTemplate.render(
         ui.draft.export.nameTemplate,
         NameContext(

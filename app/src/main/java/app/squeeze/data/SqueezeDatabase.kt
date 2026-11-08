@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [BatchEntity::class, BatchItemEntity::class, PresetEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class SqueezeDatabase : RoomDatabase() {
@@ -27,6 +27,15 @@ abstract class SqueezeDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS = arrayOf(MIGRATION_1_2)
+        /** M8: photo compression — media kind on batches/items, image params on presets. */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `batch` ADD COLUMN `kind` TEXT NOT NULL DEFAULT 'VIDEO'")
+                db.execSQL("ALTER TABLE `batch_item` ADD COLUMN `kind` TEXT NOT NULL DEFAULT 'VIDEO'")
+                db.execSQL("ALTER TABLE `preset` ADD COLUMN `imageParamsJson` TEXT")
+            }
+        }
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
     }
 }

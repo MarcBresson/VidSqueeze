@@ -49,7 +49,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.squeeze.R
 import app.squeeze.engine.Issue
+import app.squeeze.engine.MediaKind
 import app.squeeze.engine.Severity
+import app.squeeze.ui.Pill
 
 /**
  * The compression dialog: preset picker, encoding and export settings, live command, and a footer
@@ -98,10 +100,23 @@ fun PresetHeader(ui: SheetUi, vm: CompressionSheetViewModel) {
                 modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             )
             ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                if (ui.presets.any { !presetUsable(it, ui.selectionKinds) && ui.selectionKinds.size > 1 }) {
+                    DropdownMenuItem(text = {
+                        Text(stringResource(R.string.sheet_preset_kind_mismatch), style = MaterialTheme.typography.bodySmall)
+                    }, onClick = {}, enabled = false)
+                }
                 ui.presets.forEach { p ->
+                    val usable = presetUsable(p, ui.selectionKinds)
                     val badge = if (p.id == ui.defaultPresetId) " · ${stringResource(R.string.sheet_default_badge)}" else ""
                     DropdownMenuItem(
-                        text = { Text(p.name + badge) },
+                        text = {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(p.name + badge, Modifier.weight(1f, fill = false))
+                                if (MediaKind.VIDEO in p.kinds) Pill(stringResource(R.string.pill_video))
+                                if (MediaKind.IMAGE in p.kinds) Pill(stringResource(R.string.pill_photos))
+                            }
+                        },
+                        enabled = usable,
                         onClick = {
                             expanded = false
                             vm.selectPreset(p.id)

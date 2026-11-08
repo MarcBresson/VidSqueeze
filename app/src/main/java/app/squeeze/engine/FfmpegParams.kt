@@ -148,11 +148,76 @@ data class ExportOptions(
     }
 }
 
+/** What a preset (or a queue item) can compress. */
+@Serializable
+enum class MediaKind { VIDEO, IMAGE }
+
+@Serializable
+enum class ImageFormat(val extension: String, val mimeType: String) {
+    JPEG("jpg", "image/jpeg"),
+    PNG("png", "image/png"),
+    WEBP("webp", "image/webp"),
+    AVIF("avif", "image/avif"),
+    JPEG_XL("jxl", "image/jxl");
+}
+
+/** VarDCT colourspace of a JPEG XL encode (modular mode is always plain sRGB). */
+@Serializable
+enum class JxlColorspace { XYB, SRGB }
+
+/** JPEG XL encoder parameters, exposed 1:1 through the bundled libjxl. */
+@Serializable
+data class JxlParams(
+    /** 1..9, libjxl default 7. Higher = smaller + slower. */
+    val effort: Int = 7,
+    /** 0.0 = lossless, 1.0 ≈ visually lossless (libjxl default), up to 7.0. */
+    val distance: Double = 1.0,
+    /** Modular mode (UI shots, true lossless) instead of VarDCT (photos). */
+    val modular: Boolean = false,
+    val colorspace: JxlColorspace = JxlColorspace.XYB,
+    /** 8, 16 or 32 (float); 0 = keep the source depth. */
+    val bitDepth: Int = 0,
+)
+
+@Serializable
+data class ImageParams(
+    val format: ImageFormat = ImageFormat.JPEG,
+    /** JPEG and WebP quality 1..100. */
+    val quality: Int = 85,
+    /** JPEG: 4:4:4 chroma instead of the default 4:2:0. */
+    val jpegChroma444: Boolean = false,
+    /** PNG: 8 or 16 bit; alpha keeps the RGBA variants. */
+    val pngBitDepth: Int = 8,
+    /** PNG zlib compression level 0..9. */
+    val pngCompression: Int = 6,
+    /** AVIF: libaom-av1 CRF 0..63. */
+    val avifCrf: Int = 30,
+    /** AVIF: libaom `-cpu-used` 0..8. */
+    val avifEffort: Int = 6,
+    /** WebP: lossless output (quality ignored, platform encoder). */
+    val webpLossless: Boolean = false,
+    val jxl: JxlParams = JxlParams(),
+    /** Limit applied to the short side, never upscaling. null = keep. */
+    val maxShortSide: Int? = null,
+)
+
 @Serializable
 data class Preset(
     val id: String,
     val name: String,
     val builtIn: Boolean = false,
-    val params: FfmpegParams = FfmpegParams(),
+    /** Video settings; null for a photos-only preset. */
+    val params: FfmpegParams? = FfmpegParams(),
+    /** Photo settings; null for a video-only preset. */
+    val imageParams: ImageParams? = null,
     val export: ExportOptions = ExportOptions(),
-)
+) {
+    val kinds: Set<MediaKind>
+        get() = buildSet {
+            if (params != null) add(MediaKind.VIDEO)
+            if (imageParams != null) add(MediaKind.IMAGE)
+        }
+
+    /** A preset must be able to compress something. */
+    fun isValid(): Boolean = params != null || imageParams != null
+}

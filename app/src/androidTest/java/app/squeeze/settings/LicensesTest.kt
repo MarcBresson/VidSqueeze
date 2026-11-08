@@ -19,7 +19,7 @@ class LicensesTest {
 
     @Test
     fun everyListedNoticeIsBundledAndNotEmpty() {
-        (Licenses.ffmpeg.map { it.rawName } + Licenses.APP + Licenses.SOURCE_OFFER).forEach {
+        (Licenses.ffmpeg.map { it.rawName } + Licenses.bundled.map { it.rawName } + Licenses.APP + Licenses.SOURCE_OFFER).forEach {
             assertTrue("$it is empty", text(it).isNotBlank())
         }
     }

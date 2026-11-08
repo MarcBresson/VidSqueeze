@@ -137,6 +137,7 @@ private fun PermissionList(vm: PermissionsViewModel, modifier: Modifier = Modifi
 
 private fun AppPermission.title() = when (this) {
     AppPermission.VIDEOS -> R.string.perm_videos
+    AppPermission.IMAGES -> R.string.perm_images
     AppPermission.LOCATION -> R.string.perm_location
     AppPermission.NOTIFICATIONS -> R.string.perm_notifications
     AppPermission.MANAGE_MEDIA -> R.string.perm_manage_media
@@ -145,6 +146,7 @@ private fun AppPermission.title() = when (this) {
 
 private fun AppPermission.reason() = when (this) {
     AppPermission.VIDEOS -> R.string.perm_videos_why
+    AppPermission.IMAGES -> R.string.perm_images_why
     AppPermission.LOCATION -> R.string.perm_location_why
     AppPermission.NOTIFICATIONS -> R.string.perm_notifications_why
     AppPermission.MANAGE_MEDIA -> R.string.perm_manage_media_why

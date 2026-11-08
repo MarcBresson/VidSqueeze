@@ -42,6 +42,37 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun migrate2To3KeepsDataAndAddsKindAndImageParams() {
+        helper.createDatabase(DB, 2).apply {
+            execSQL(
+                "INSERT INTO batch (id, source, presetId, presetName, presetSnapshotJson, exportMode, createdAt, status) " +
+                    "VALUES (1, 'SHARE', 'builtin.share', 'Share', '{}', 'ASK_WHEN_DONE', 1000, 'QUEUED')",
+            )
+            execSQL(
+                "INSERT INTO batch_item (id, batchId, position, sourceUri, displayName, originalSize, status) " +
+                    "VALUES (1, 1, 0, 'content://x', 'a.mp4', 100, 'QUEUED')",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(DB, 3, true, SqueezeDatabase.MIGRATION_2_3)
+
+        db.query("SELECT kind FROM batch WHERE id = 1").use {
+            it.moveToFirst()
+            assertEquals("VIDEO", it.getString(0))
+        }
+        db.query("SELECT kind FROM batch_item WHERE id = 1").use {
+            it.moveToFirst()
+            assertEquals("VIDEO", it.getString(0))
+        }
+        db.execSQL("INSERT INTO preset VALUES ('user.1', 'P', '{}', NULL, '{}', 1, 1)")
+        db.query("SELECT COUNT(*) FROM preset").use {
+            it.moveToFirst()
+            assertEquals(1, it.getInt(0))
+        }
+    }
+
     private companion object {
         const val DB = "migration-test"
     }

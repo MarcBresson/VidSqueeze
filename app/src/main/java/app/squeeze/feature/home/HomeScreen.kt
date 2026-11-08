@@ -109,7 +109,7 @@ fun HomeScreen(
             item(key = "select") {
                 SelectVideosCard(onClick = {
                     notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
+                    picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
                 })
             }
 

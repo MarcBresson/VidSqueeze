@@ -133,6 +133,10 @@ fun LicensesScreen(onBack: () -> Unit, onOpenText: (String) -> Unit) {
                 TextRow(entry.title) { onOpenText(entry.rawName) }
                 HorizontalDivider()
             }
+            items(Licenses.bundled, key = { it.rawName }) { entry ->
+                TextRow(entry.title) { onOpenText(entry.rawName) }
+                HorizontalDivider()
+            }
             item { Text(stringResource(R.string.licenses_android), Modifier.padding(top = 16.dp, bottom = 4.dp), style = MaterialTheme.typography.titleMedium) }
             items(Licenses.android, key = { it.title }) { link ->
                 Column(

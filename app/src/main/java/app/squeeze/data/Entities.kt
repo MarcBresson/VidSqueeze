@@ -5,6 +5,7 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import app.squeeze.engine.ExportMode
+import app.squeeze.engine.MediaKind
 
 enum class BatchSource { SHARE, PICKER, AUTO }
 
@@ -27,6 +28,8 @@ data class BatchEntity(
     val startedAt: Long? = null,
     val finishedAt: Long? = null,
     val status: BatchStatus = BatchStatus.QUEUED,
+    /** What the batch's items are; a dual preset's batch keeps the kind of its selection. */
+    val kind: MediaKind = MediaKind.VIDEO,
 )
 
 @Entity(
@@ -57,6 +60,8 @@ data class BatchItemEntity(
     val startedAt: Long? = null,
     val finishedAt: Long? = null,
     val error: String? = null,
+    /** Whether this item is a video or a photo; decides which params block compresses it. */
+    val kind: MediaKind = MediaKind.VIDEO,
 )
 
 /** A user-made preset. Built-in presets live in code ([app.squeeze.engine.BuiltInPresets]), not here. */
@@ -65,6 +70,8 @@ data class PresetEntity(
     @PrimaryKey val id: String,
     val name: String,
     val paramsJson: String,
+    /** JSON-encoded [app.squeeze.engine.ImageParams], null for a video-only preset. */
+    val imageParamsJson: String? = null,
     val exportJson: String,
     val createdAt: Long,
     val updatedAt: Long,

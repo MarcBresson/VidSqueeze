@@ -12,6 +12,7 @@ import app.squeeze.data.FinalizeState
 import app.squeeze.data.ItemStatus
 import app.squeeze.data.ResultsRepository
 import app.squeeze.engine.FfmpegKitEngine
+import app.squeeze.engine.MediaKind
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import javax.inject.Inject
@@ -81,7 +82,7 @@ class Finalizer @Inject constructor(
     suspend fun needsWriteConsentItem(itemId: Long, trusted: Boolean = true): List<Uri> {
         val item = results.item(itemId) ?: return emptyList()
         if (FinalizePlanner.pendingResult(item) == null || FinalizePlanner.replaceKind(item) != ReplaceKind.IN_PLACE) return emptyList()
-        val uri = store.itemUri(item.mediaStoreId!!)
+        val uri = store.itemUri(item.mediaStoreId!!, item.kind)
         return listOf(uri).filterNot { store.hasWriteAccess(it, trusted) }
     }
 
@@ -97,7 +98,7 @@ class Finalizer @Inject constructor(
      */
     suspend fun needsWriteConsent(batchId: Long, trusted: Boolean = true): List<Uri> =
         plan(batchId).itemsOf(ReplaceKind.IN_PLACE)
-            .map { store.itemUri(it.mediaStoreId!!) }
+            .map { store.itemUri(it.mediaStoreId!!, it.kind) }
             .filterNot { store.hasWriteAccess(it, trusted) }
 
     /** Adds every pending result to the gallery as a new video, next to its original. */
@@ -133,7 +134,7 @@ class Finalizer @Inject constructor(
 
     private suspend fun saveCopy(item: BatchItemEntity, report: FinalizeReport): FinalizeReport {
         val staged = stagedFile(item)
-        val original = item.mediaStoreId?.takeIf { !item.isImported }?.let(store::originalInfo)
+        val original = item.mediaStoreId?.takeIf { !item.isImported }?.let { store.originalInfo(it, item.kind) }
         val uri = store.createCopy(
             staged, staged.name, original?.relativePath, FinalizePlanner.mimeType(staged.extension), original?.dateTakenMs,
         )
@@ -147,7 +148,7 @@ class Finalizer @Inject constructor(
 
     private suspend fun overwrite(item: BatchItemEntity, report: FinalizeReport): FinalizeReport {
         val staged = verifiedStaged(item)
-        val uri = store.itemUri(item.mediaStoreId!!)
+        val uri = store.itemUri(item.mediaStoreId!!, item.kind)
         store.overwrite(uri, staged)
         done(item, staged, FinalizeState.REPLACED, uri)
         return report.replacedWith(item)
@@ -155,8 +156,8 @@ class Finalizer @Inject constructor(
 
     private suspend fun swap(item: BatchItemEntity, report: FinalizeReport): FinalizeReport {
         val staged = verifiedStaged(item)
-        val originalUri = store.itemUri(item.mediaStoreId!!)
-        val original = store.originalInfo(item.mediaStoreId)
+        val originalUri = store.itemUri(item.mediaStoreId!!, item.kind)
+        val original = store.originalInfo(item.mediaStoreId, item.kind)
         val copy = store.createCopy(
             staged, FinalizePlanner.swappedName(item.displayName, staged.extension), original?.relativePath,
             FinalizePlanner.mimeType(staged.extension), original?.dateTakenMs,
@@ -183,7 +184,7 @@ class Finalizer @Inject constructor(
             item.isImported || item.mediaStoreId == null -> ReplaceAfterSaveResult.Unavailable
             store.length(copy) <= 0 -> ReplaceAfterSaveResult.Failed("The saved copy is gone")
             else -> try {
-                val original = store.itemUri(item.mediaStoreId)
+                val original = store.itemUri(item.mediaStoreId, item.kind)
                 if (store.exists(original) && !store.deleteQuietly(original)) {
                     ReplaceAfterSaveResult.NeedsDeleteConsent(original)
                 } else {
@@ -206,7 +207,9 @@ class Finalizer @Inject constructor(
     /** The staged file, after checking with ffprobe that it is a faithful copy of the source. */
     private suspend fun verifiedStaged(item: BatchItemEntity): File {
         val staged = stagedFile(item)
-        val problem = OutputVerifier.problem(item.durationMs, engine.probe(staged.absolutePath, staged.extension))
+        val probed = engine.probe(staged.absolutePath, staged.extension)
+        val problem = if (item.kind == MediaKind.IMAGE) OutputVerifier.imageProblem(probed)
+        else OutputVerifier.problem(item.durationMs, probed)
         if (problem != null) throw IllegalStateException(problem)
         return staged
     }

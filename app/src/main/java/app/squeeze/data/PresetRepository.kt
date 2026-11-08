@@ -4,6 +4,7 @@ import app.squeeze.engine.BuiltInPresets
 import app.squeeze.engine.EngineJson
 import app.squeeze.engine.ExportOptions
 import app.squeeze.engine.FfmpegParams
+import app.squeeze.engine.ImageParams
 import app.squeeze.engine.Preset
 import app.squeeze.presets.PresetTransfer
 import java.util.UUID
@@ -34,12 +35,14 @@ class PresetRepository @Inject constructor(private val dao: PresetDao) {
     suspend fun getOrDefault(id: String?): Preset = get(id) ?: BuiltInPresets.share
 
     /** Stores a new user preset; the name is made unique among all presets. */
-    suspend fun create(name: String, params: FfmpegParams, export: ExportOptions): Preset {
+    suspend fun create(name: String, params: FfmpegParams?, imageParams: ImageParams?, export: ExportOptions): Preset {
+        require(params != null || imageParams != null) { "A preset must handle videos or photos" }
         val preset = Preset(
             id = newId(),
             name = uniqueName(name, excludeId = null),
             builtIn = false,
             params = params,
+            imageParams = imageParams,
             export = export,
         )
         dao.upsert(toEntity(preset, createdAt = clock()))
@@ -63,7 +66,7 @@ class PresetRepository @Inject constructor(private val dao: PresetDao) {
 
     suspend fun duplicate(id: String): Preset? {
         val source = get(id) ?: return null
-        return create("${source.name} copy", source.params, source.export)
+        return create("${source.name} copy", source.params, source.imageParams, source.export)
     }
 
     suspend fun importAll(presets: List<Preset>) {
@@ -79,20 +82,24 @@ class PresetRepository @Inject constructor(private val dao: PresetDao) {
     private fun toEntity(p: Preset, createdAt: Long) = PresetEntity(
         id = p.id,
         name = p.name,
-        paramsJson = EngineJson.encodeToString(p.params),
+        paramsJson = p.params?.let { EngineJson.encodeToString(it) } ?: "{}",
+        imageParamsJson = p.imageParams?.let { EngineJson.encodeToString(it) },
         exportJson = EngineJson.encodeToString(p.export),
         createdAt = createdAt,
         updatedAt = clock(),
     )
 
     private fun toPreset(e: PresetEntity): Preset? = try {
+        val params = if (e.paramsJson == "{}") null else EngineJson.decodeFromString<FfmpegParams>(e.paramsJson)
+        val imageParams = e.imageParamsJson?.let { EngineJson.decodeFromString<ImageParams>(it) }
         Preset(
             id = e.id,
             name = e.name,
             builtIn = false,
-            params = EngineJson.decodeFromString<FfmpegParams>(e.paramsJson),
+            params = params,
+            imageParams = imageParams,
             export = EngineJson.decodeFromString<ExportOptions>(e.exportJson),
-        )
+        ).takeIf { it.isValid() }
     } catch (ex: Exception) {
         null // an unreadable row must not take the whole list down
     }

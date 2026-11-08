@@ -81,6 +81,7 @@ import app.squeeze.data.ItemStatus
 import app.squeeze.data.PresetStats
 import app.squeeze.data.StatTotals
 import app.squeeze.data.StatsPeriod
+import app.squeeze.engine.MediaKind
 import app.squeeze.feature.home.Reduction
 import app.squeeze.feature.queue.activeJobs
 import app.squeeze.finalize.FinalizeAction
@@ -344,6 +345,7 @@ private fun ItemBlock(
                         MaterialTheme.colorScheme.onErrorContainer,
                     )
                 }
+                if (item.kind == MediaKind.IMAGE) Pill(stringResource(R.string.pill_photos))
                 OutcomePill(item)
                 if (canCompare(item)) {
                     IconButton(onClick = { onCompare(item.id) }, Modifier.padding(start = 2.dp)) {

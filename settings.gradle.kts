@@ -21,4 +21,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "squeeze"
-include(":app")
+include(":app", ":libjxl")

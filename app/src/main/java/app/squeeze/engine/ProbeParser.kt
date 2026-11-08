@@ -48,6 +48,7 @@ object ProbeParser {
 
         return SourceInfo(
             container = container(format, extensionHint),
+            frameCount = video.int("nb_frames") ?: 1,
             durationMs = (durationSec * 1000).toLong(),
             width = video.int("width") ?: 0,
             height = video.int("height") ?: 0,

@@ -1,6 +1,7 @@
 package app.squeeze.data
 
 import app.squeeze.engine.EngineJson
+import app.squeeze.engine.MediaKind
 import app.squeeze.engine.Preset
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -14,6 +15,7 @@ data class QueuedSource(
     val isImported: Boolean,
     val displayName: String,
     val size: Long,
+    val kind: MediaKind = MediaKind.VIDEO,
 )
 
 /** What happened to one item, as recorded by [QueueRepository.complete]. */
@@ -47,6 +49,7 @@ class QueueRepository @Inject constructor(
                 presetSnapshotJson = EngineJson.encodeToString(preset),
                 exportMode = preset.export.mode,
                 createdAt = clock(),
+                kind = sources.map { it.kind }.distinct().singleOrNull() ?: MediaKind.VIDEO,
             ),
         )
         var position = items.maxPosition()
@@ -60,6 +63,7 @@ class QueueRepository @Inject constructor(
                     isImported = it.isImported,
                     displayName = it.displayName,
                     originalSize = it.size,
+                    kind = it.kind,
                 )
             },
         )
@@ -143,7 +147,7 @@ class QueueRepository @Inject constructor(
     suspend fun skipIds(): Set<Long> {
         val ids = items.handledMediaIds().toMutableSet()
         ids += items.failedAtLeast(MAX_FAILURES)
-        items.finalUris().mapNotNullTo(ids) { SourceImporter.mediaStoreVideoId(android.net.Uri.parse(it)) }
+        items.finalUris().mapNotNullTo(ids) { SourceImporter.mediaStoreId(android.net.Uri.parse(it))?.first }
         return ids
     }
 

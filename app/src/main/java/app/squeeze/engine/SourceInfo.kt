@@ -15,6 +15,8 @@ data class SourceInfo(
     val fps: Double = 0.0,
     /** ffprobe `codec_name` of the first video stream. */
     val videoCodec: String? = null,
+    /** Frame count when ffprobe reports one (`nb_frames`); 1 for still images. */
+    val frameCount: Int = 1,
     val pixFmt: String? = null,
     val colorTransfer: String? = null,
     val colorPrimaries: String? = null,

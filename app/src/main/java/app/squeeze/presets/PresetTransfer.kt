@@ -42,7 +42,7 @@ object PresetTransfer {
         if (bundle.presets.isEmpty()) return ImportResult.Invalid("The file contains no presets.")
 
         val taken = existingNames.mapTo(mutableSetOf()) { it.lowercase() }
-        val presets = bundle.presets.map { p ->
+        val presets = bundle.presets.filter { it.isValid() }.map { p ->
             val name = uniqueName(p.name.trim().ifEmpty { "Imported preset" }, taken)
             taken += name.lowercase()
             p.copy(id = newId(), name = name, builtIn = false)

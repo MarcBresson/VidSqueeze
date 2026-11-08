@@ -18,11 +18,15 @@ data class CommandPreview(
         const val INPUT_PLACEHOLDER = "<input>"
 
         fun of(preset: Preset, source: SourceInfo?, options: BuildOptions = BuildOptions()): CommandPreview {
+            val params = preset.params ?: return CommandPreview(
+                command = null, container = null,
+                issues = listOf(Issue(Severity.INFO, "photos_only", "This preset compresses photos; video settings are not shown.")),
+            )
             val src = source ?: SAMPLE_SOURCE
-            val resolution = CodecContainerMatrix.resolveContainer(preset.params, src)
+            val resolution = CodecContainerMatrix.resolveContainer(params, src)
             val container = resolution.container ?: return CommandPreview(null, null, resolution.issues)
             val build = FfmpegCommandBuilder.build(
-                preset.params, src, INPUT_PLACEHOLDER, "<output>.${container.extension}", preset.export, options,
+                params, src, INPUT_PLACEHOLDER, "<output>.${container.extension}", preset.export, options,
             )
             return when (build) {
                 is BuildResult.Ok -> CommandPreview(build.display(), build.container, build.issues)

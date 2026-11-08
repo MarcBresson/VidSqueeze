@@ -17,6 +17,7 @@ enum class AppPermission(
     val recommended: Boolean,
 ) {
     VIDEOS(Manifest.permission.READ_MEDIA_VIDEO, recommended = true),
+    IMAGES(Manifest.permission.READ_MEDIA_IMAGES, recommended = true),
     LOCATION(Manifest.permission.ACCESS_MEDIA_LOCATION, recommended = false),
     NOTIFICATIONS(Manifest.permission.POST_NOTIFICATIONS, recommended = false),
     MANAGE_MEDIA(null, recommended = false),

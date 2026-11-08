@@ -16,6 +16,8 @@ import app.squeeze.engine.FfmpegKitEngine
 import app.squeeze.engine.FfmpegParams
 import app.squeeze.engine.HardwareEncoderProbe
 import app.squeeze.engine.HardwareEncoders
+import app.squeeze.engine.ImageParams
+import app.squeeze.engine.MediaKind
 import app.squeeze.engine.Preset
 import app.squeeze.engine.SizeEstimator
 import app.squeeze.engine.SourceInfo
@@ -56,9 +58,12 @@ data class SheetUi(
     val message: SheetMessage? = null,
     /** Hardware encoders of this device; empty until probed and on devices without any. */
     val hardware: HardwareEncoders = HardwareEncoders(),
+    /** Kinds present in the current file selection; empty (all presets usable) until files load. */
+    val selectionKinds: Set<MediaKind> = emptySet(),
 ) {
-    val dirty: Boolean get() = draft.params != base.params || draft.export != base.export
-    val canStart: Boolean get() = !preview.hasErrors
+    val dirty: Boolean get() =
+        draft.params != base.params || draft.imageParams != base.imageParams || draft.export != base.export
+    val canStart: Boolean get() = !preview.hasErrors && draft.isValid()
 }
 
 /**
@@ -112,6 +117,7 @@ class CompressionSheetViewModel @Inject constructor(
                     fileCount = files.size,
                     totalBytes = described.sumOf { d -> d.second },
                     firstFileName = described.firstOrNull()?.first,
+                    selectionKinds = described.map { d -> SourceImporter.kindFromExtension(d.first) }.toSet(),
                     source = null,
                 )
             }
@@ -132,8 +138,33 @@ class CompressionSheetViewModel @Inject constructor(
         viewModelScope.launch { presets.get(id)?.let { select(it) } }
     }
 
-    fun editParams(change: (FfmpegParams) -> FfmpegParams) {
-        _ui.update { it.copy(draft = it.draft.copy(params = change(it.draft.params))) }
+    /** Video settings edit; a no-op while the preset's video tab is disabled. */
+    fun editVideoParams(change: (FfmpegParams) -> FfmpegParams) {
+        _ui.update { ui ->
+            val params = ui.draft.params ?: return@update ui
+            ui.copy(draft = ui.draft.copy(params = change(params)))
+        }
+        recompute()
+    }
+
+    /** Photo settings edit; enables the photo tab with defaults when it was off. */
+    fun editImageParams(change: (ImageParams) -> ImageParams) {
+        _ui.update { ui ->
+            val params = ui.draft.imageParams ?: ImageParams()
+            ui.copy(draft = ui.draft.copy(imageParams = change(params)))
+        }
+        recompute()
+    }
+
+    /** Toggles a kind on the draft. At least one kind must stay enabled. */
+    fun setKindEnabled(kind: MediaKind, enabled: Boolean) {
+        _ui.update { ui ->
+            val candidate = when (kind) {
+                MediaKind.VIDEO -> ui.draft.copy(params = if (enabled) ui.draft.params ?: FfmpegParams() else null)
+                MediaKind.IMAGE -> ui.draft.copy(imageParams = if (enabled) ui.draft.imageParams ?: ImageParams() else null)
+            }
+            if (!candidate.isValid()) ui else ui.copy(draft = candidate)
+        }
         recompute()
     }
 
@@ -151,7 +182,7 @@ class CompressionSheetViewModel @Inject constructor(
     fun saveAs(name: String) {
         viewModelScope.launch {
             val d = _ui.value.draft
-            select(presets.create(name, d.params, d.export))
+            select(presets.create(name, d.params, d.imageParams, d.export))
             _ui.update { it.copy(message = SheetMessage.Saved) }
         }
     }
@@ -235,7 +266,8 @@ class CompressionSheetViewModel @Inject constructor(
         _ui.update { ui ->
             val source = ui.source
             val estimate = source?.let { s ->
-                val perFile = SizeEstimator.estimateBytes(ui.draft.params, s, firstFileBytes)
+                // Videos only for now; an image estimator can slot in beside it.
+                val perFile = ui.draft.params?.let { SizeEstimator.estimateBytes(it, s, firstFileBytes) }
                 if (perFile != null && firstFileBytes > 0) (perFile.toDouble() / firstFileBytes * ui.totalBytes).toLong() else null
             }
             ui.copy(

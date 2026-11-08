@@ -20,7 +20,7 @@ class CommandPreviewTest {
 
     @Test
     fun `incompatible container is reported and has no command`() {
-        val preset = BuiltInPresets.share.copy(params = BuiltInPresets.share.params.copy(container = Container.WEBM))
+        val preset = BuiltInPresets.share.copy(params = BuiltInPresets.share.params!!.copy(container = Container.WEBM))
         val preview = CommandPreview.of(preset, null)
         assertTrue(preview.hasErrors)
         assertNull(preview.command)
@@ -36,7 +36,7 @@ class CommandPreviewTest {
 
     @Test
     fun `forbidden custom args surface as errors`() {
-        val preset = BuiltInPresets.share.copy(params = BuiltInPresets.share.params.copy(customArgs = "-i other.mp4"))
+        val preset = BuiltInPresets.share.copy(params = BuiltInPresets.share.params!!.copy(customArgs = "-i other.mp4"))
         assertTrue(CommandPreview.of(preset, null).hasErrors)
     }
 }

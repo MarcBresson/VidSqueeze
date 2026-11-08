@@ -56,6 +56,13 @@ object Licenses {
         LicenseEntry("libuuid", "license_libuuid"),
     )
 
+    /** Licences of libraries we bundle ourselves (not inside the FFmpegKit AAR). */
+    val bundled: List<LicenseEntry> = listOf(
+        LicenseEntry("libjxl (JPEG XL)", "license_libjxl"),
+        LicenseEntry("Brotli", "license_brotli"),
+        LicenseEntry("Highway", "license_highway"),
+    )
+
     val android: List<LicenseLink> = listOf(
         LicenseLink("AndroidX, Jetpack Compose, Room, WorkManager, DataStore, Navigation, Media3", "Apache License 2.0", "https://www.apache.org/licenses/LICENSE-2.0"),
         LicenseLink("Kotlin and kotlinx libraries", "Apache License 2.0", "https://www.apache.org/licenses/LICENSE-2.0"),

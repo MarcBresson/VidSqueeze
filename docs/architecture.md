@@ -99,6 +99,32 @@ Stats are computed from `Item` joined with `Batch`, filtered by period, grouped 
 - **Shortcuts**: see [automation.md](automation.md). `AppShortcuts` publishes the long-press actions (`run` only while auto is on, kept in sync by `SqueezeApp`); the not-exported `ShortcutActivity` runs them through `AutoRunner` / `QueueManager`. There is no external broadcast API.
 - **Logs**: `ItemProcessor` writes ffmpeg's output of each item to `files/logs/<itemId>.log` through `LogStore` (command on the first line, 256 KB cap); History's "Show logs" sheet reads it. Items from before this have no log.
 
+## Photos (as built in M8)
+
+- Photos ride the same queue, staging, finalize and history pipeline as videos. A preset now has
+  an optional `params` (video) **and** an optional `imageParams` (photos); at least one must be
+  set (`Preset.isValid`). The preset editor shows Video/Photos tabs, each with a switch; both off
+  is refused. Rows in the preset list and the compression sheet carry Video/Photos pills, and a
+  preset is greyed out when the selection includes a kind it cannot compress (`presetUsable`;
+  the loader validates the same predicate). A mixed selection runs in one batch — each item
+  stores its `kind` and is compressed with the matching params block.
+- Encoders are split by format: JPEG (`mjpeg`, baseline only), PNG and AVIF (`libaom-av1`
+  with `-still-picture`) go through FFmpeg (`ImageCommandBuilder`); WebP goes through the
+  platform `Bitmap` API (the bundled FFmpegKit has no libwebp *encoder*); JPEG XL goes through
+  the bundled `libjxl` (`:libjxl` Gradle module, git submodule, built by CMake; the JNI bridge
+  is `libjxl/src/main/cpp/jxl_jni.cpp`). FFmpeg decodes every input (including HEIC, which is
+  input-only, and JXL via its native decoder); animated inputs are rejected. Every image item's
+  log shows a pseudo-command (`platform-webp quality=85 …`, `libjxl effort=7 …`) so history
+  stays inspectable.
+- Photo metadata: FFmpeg cannot write EXIF into still images, so `MetadataCopier` copies the
+  filtered tag set onto JPEG/WebP outputs after the encode (`MetadataFilter` drops GPS when
+  `keepLocation` is off, resets orientation — the pixels are rotated at encode, since image
+  demuxers ignore EXIF — and thumbnails). PNG/AVIF/JXL cannot carry it here and get a log note.
+- Output: `MediaStoreWriter` writes images into the image collection with a `Pictures/Squeeze`
+  fallback; everything else (consent flow, replace/save/reshare, results retention) is shared
+  with videos. Auto compression and the compare screen remain video-only (planned follow-up).
+- Room moved to schema 3: `kind` on `batch`/`batch_item`, `imageParamsJson` on `preset`.
+
 ## Settings, permissions, about (as built in M7)
 
 - **Settings** (`SettingsRepository`, DataStore): theme (system / light / dark) and wallpaper colours, default share preset, result retention, first-run flag. `AppViewModel` loads them before the first frame so the theme and start screen are right; the activity also sets the system bar style from the app's own choice, not the device's.
