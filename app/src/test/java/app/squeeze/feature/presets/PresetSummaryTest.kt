@@ -8,6 +8,7 @@ import app.squeeze.engine.Preset
 import app.squeeze.engine.RateControl
 import app.squeeze.engine.VideoCodec
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class PresetSummaryTest {
@@ -24,11 +25,12 @@ class PresetSummaryTest {
                 rateControl = RateControl.Crf(20),
             ),
         )
-        assertEquals("H.265 · CRF 20", summary(p))
+        assertEquals("H.265 · CRF 20", videoSummary(p))
+        assertNull(imageSummary(p))
     }
 
     @Test
-    fun dualPresetAppendsPhotoDetails() {
+    fun dualPresetShowsBothKindsSeparately() {
         val p = preset(
             params = FfmpegParams(
                 videoCodec = VideoCodec.H264,
@@ -37,7 +39,8 @@ class PresetSummaryTest {
             ),
             imageParams = ImageParams(format = ImageFormat.JPEG, quality = 85),
         )
-        assertEquals("H.264 · CRF 28 · 720p · Jpeg · Q85", summary(p))
+        assertEquals("H.264 · CRF 28 · 720p", videoSummary(p))
+        assertEquals("Jpeg · Q85", imageSummary(p))
     }
 
     @Test
@@ -49,28 +52,29 @@ class PresetSummaryTest {
                 maxShortSide = 1080,
             ),
         )
-        assertEquals("Avif · CRF 30 · 1080p", summary(p))
+        assertEquals("Avif · CRF 30 · 1080p", imageSummary(p))
+        assertNull(videoSummary(p))
     }
 
     @Test
     fun jpegXlLabelUsesItsOwnQuality() {
         val p = preset(imageParams = ImageParams(format = ImageFormat.JPEG_XL, jxl = JxlParams(quality = 90)))
-        assertEquals("Jpeg xl · Q90", summary(p))
+        assertEquals("Jpeg xl · Q90", imageSummary(p))
     }
 
     @Test
     fun losslessFormatsSayLosslessInsteadOfQuality() {
         assertEquals(
             "Webp · lossless",
-            summary(preset(imageParams = ImageParams(format = ImageFormat.WEBP, webpLossless = true))),
+            imageSummary(preset(imageParams = ImageParams(format = ImageFormat.WEBP, webpLossless = true))),
         )
         assertEquals(
             "Png · lossless",
-            summary(preset(imageParams = ImageParams(format = ImageFormat.PNG))),
+            imageSummary(preset(imageParams = ImageParams(format = ImageFormat.PNG))),
         )
         assertEquals(
             "Jpeg xl · lossless",
-            summary(preset(imageParams = ImageParams(format = ImageFormat.JPEG_XL, jxl = JxlParams(modular = true)))),
+            imageSummary(preset(imageParams = ImageParams(format = ImageFormat.JPEG_XL, jxl = JxlParams(modular = true)))),
         )
     }
 }

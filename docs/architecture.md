@@ -103,8 +103,11 @@ Stats are computed from `Item` joined with `Batch`, filtered by period, grouped 
 
 - Photos ride the same queue, staging, finalize and history pipeline as videos. A preset now has
   an optional `params` (video) **and** an optional `imageParams` (photos); at least one must be
-  set (`Preset.isValid`). The preset editor shows Video/Photos tabs, each with a switch; both off
-  is refused. Rows in the preset list and the compression sheet carry Video/Photos pills, and a
+  set (`Preset.isValid`). The preset editor shows Video/Photos tabs, each with a switch inside the
+  tab and a kind icon that is filled and tinted while enabled, outlined while disabled; both off
+  is refused. Rows in the preset list show one icon-led line per enabled kind (movie icon + video
+  settings, image icon + photo settings, primary/tertiary tints), while the compression sheet
+  picker still carries Video/Photos pills, and a
   preset is greyed out when the selection includes a kind it cannot compress (`presetUsable`;
   the loader validates the same predicate). A mixed selection runs in one batch — each item
   stores its `kind` and is compressed with the matching params block.

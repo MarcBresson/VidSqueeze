@@ -5,17 +5,24 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -26,7 +33,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import app.squeeze.R
@@ -64,27 +75,24 @@ fun PresetForm(ui: SheetUi, vm: CompressionSheetViewModel, modifier: Modifier = 
         if (!tabTouched && ui.selectionKinds == setOf(MediaKind.IMAGE) && ui.draft.imageParams != null) tab = 1
     }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Choice(
+        PrimaryTabRow(selectedTabIndex = tab) {
+            KindTab(
                 selected = tab == 0,
                 label = stringResource(R.string.img_preset_tab_video),
+                icon = if (ui.draft.params != null) Icons.Filled.Movie else Icons.Outlined.Movie,
+                tint = MaterialTheme.colorScheme.primary,
                 enabled = ui.draft.params != null,
-                onClick = { tabTouched = true; tab = 0 },
+                onSelect = { tabTouched = true; tab = 0 },
+                onToggle = { vm.setKindEnabled(MediaKind.VIDEO, it) },
             )
-            Switch(
-                checked = ui.draft.params != null,
-                onCheckedChange = { vm.setKindEnabled(MediaKind.VIDEO, it) },
-            )
-            Spacer(Modifier.width(12.dp))
-            Choice(
+            KindTab(
                 selected = tab == 1,
                 label = stringResource(R.string.img_preset_tab_photos),
+                icon = if (ui.draft.imageParams != null) Icons.Filled.Image else Icons.Outlined.Image,
+                tint = MaterialTheme.colorScheme.tertiary,
                 enabled = ui.draft.imageParams != null,
-                onClick = { tabTouched = true; tab = 1 },
-            )
-            Switch(
-                checked = ui.draft.imageParams != null,
-                onCheckedChange = { vm.setKindEnabled(MediaKind.IMAGE, it) },
+                onSelect = { tabTouched = true; tab = 1 },
+                onToggle = { vm.setKindEnabled(MediaKind.IMAGE, it) },
             )
         }
         if (ui.draft.params == null && ui.draft.imageParams == null) {
@@ -96,6 +104,41 @@ fun PresetForm(ui: SheetUi, vm: CompressionSheetViewModel, modifier: Modifier = 
             ui.draft.imageParams?.let { ImageEncodingSection(it, vm) }
         }
         ExportSection(ui, vm)
+    }
+}
+
+/**
+ * A Video/Photos tab: the kind icon is filled and tinted while enabled and outlined while disabled,
+ * and the switch inside the tab toggles that kind on and off.
+ */
+@Composable
+private fun KindTab(
+    selected: Boolean,
+    label: String,
+    icon: ImageVector,
+    tint: Color,
+    enabled: Boolean,
+    onSelect: () -> Unit,
+    onToggle: (Boolean) -> Unit,
+) {
+    Tab(selected = selected, onClick = onSelect) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = if (enabled) tint else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+            Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+            Switch(
+                checked = enabled,
+                onCheckedChange = onToggle,
+                modifier = Modifier.semantics { contentDescription = label },
+            )
+        }
     }
 }
 

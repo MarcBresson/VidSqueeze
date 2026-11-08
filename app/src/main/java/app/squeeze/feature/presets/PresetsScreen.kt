@@ -10,10 +10,13 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,6 +34,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -39,8 +44,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.squeeze.R
 import app.squeeze.engine.ImageFormat
 import app.squeeze.engine.ImageParams
-import app.squeeze.engine.MediaKind
-import app.squeeze.ui.Pill
 import app.squeeze.engine.ParamOptions.label
 import app.squeeze.engine.Preset
 import app.squeeze.engine.RateControl
@@ -116,14 +119,20 @@ private fun Header(text: String) =
 private fun PresetRow(preset: Preset, isDefault: Boolean, onEdit: (String) -> Unit, onDefault: (String) -> Unit) {
     ListItem(
         modifier = Modifier.clickable { onEdit(preset.id) },
-        headlineContent = {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(preset.name, Modifier.weight(1f, fill = false))
-                if (MediaKind.VIDEO in preset.kinds) Pill(stringResource(R.string.pill_video))
-                if (MediaKind.IMAGE in preset.kinds) Pill(stringResource(R.string.pill_photos))
+        headlineContent = { Text(preset.name) },
+        supportingContent = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                videoSummary(preset)?.let {
+                    ParamsLine(icon = Icons.Filled.Movie, tint = MaterialTheme.colorScheme.primary, text = it)
+                }
+                imageSummary(preset)?.let {
+                    ParamsLine(icon = Icons.Filled.Image, tint = MaterialTheme.colorScheme.tertiary, text = it)
+                }
+                if (preset.params == null && preset.imageParams == null) {
+                    Text("photos") // an invalid preset row still shows something
+                }
             }
         },
-        supportingContent = { Text(summary(preset)) },
         trailingContent = {
             IconButton(onClick = { onDefault(preset.id) }) {
                 Icon(
@@ -136,28 +145,37 @@ private fun PresetRow(preset: Preset, isDefault: Boolean, onEdit: (String) -> Un
     )
 }
 
-/** One-line preset description: video settings, then photo settings when the preset handles photos. */
-internal fun summary(p: Preset): String {
-    val parts = buildList {
-        p.params?.let { params ->
-            add(params.videoCodec.label())
-            when (val r = params.rateControl) {
-                is RateControl.Crf -> if (params.videoCodec != VideoCodec.COPY) add("CRF ${r.value}")
-                is RateControl.BitrateKbps -> add("${r.kbps} kbit/s")
-                is RateControl.PercentOfSource -> add("${r.percent}% of source")
-                is RateControl.ConstantQuality -> add("CQ ${r.value}")
-            }
-            params.maxShortSide?.let { add("${it}p") }
-            params.fpsMax?.let { add("$it fps") }
-        }
-        p.imageParams?.let { ip ->
-            add(imageFormatLabel(ip.format))
-            add(imageQualityLabel(ip))
-            ip.maxShortSide?.let { add("${it}p") }
-        }
+/** One parameter line of a preset row: a kind icon followed by that kind's settings. */
+@Composable
+private fun ParamsLine(icon: ImageVector, tint: Color, text: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium)
     }
-    if (parts.isEmpty()) return "photos" // an invalid preset row still shows something
-    return parts.joinToString(" · ")
+}
+
+/** Video settings of a preset row (codec · rate control · resolution · fps), or null when the preset does not handle videos. */
+internal fun videoSummary(p: Preset): String? = p.params?.let { params ->
+    buildList {
+        add(params.videoCodec.label())
+        when (val r = params.rateControl) {
+            is RateControl.Crf -> if (params.videoCodec != VideoCodec.COPY) add("CRF ${r.value}")
+            is RateControl.BitrateKbps -> add("${r.kbps} kbit/s")
+            is RateControl.PercentOfSource -> add("${r.percent}% of source")
+            is RateControl.ConstantQuality -> add("CQ ${r.value}")
+        }
+        params.maxShortSide?.let { add("${it}p") }
+        params.fpsMax?.let { add("$it fps") }
+    }.joinToString(" · ")
+}
+
+/** Photo settings of a preset row (format · quality knob · resolution), or null when the preset does not handle photos. */
+internal fun imageSummary(p: Preset): String? = p.imageParams?.let { ip ->
+    buildList {
+        add(imageFormatLabel(ip.format))
+        add(imageQualityLabel(ip))
+        ip.maxShortSide?.let { add("${it}p") }
+    }.joinToString(" · ")
 }
 
 private fun imageFormatLabel(format: ImageFormat): String =
