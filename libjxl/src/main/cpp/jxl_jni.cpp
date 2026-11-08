@@ -6,7 +6,6 @@
 #include <jxl/encode.h>
 #include <jxl/types.h>
 
-#include <cstring>
 #include <vector>
 
 namespace {
@@ -33,11 +32,15 @@ Java_app_squeeze_jxl_Jxl_encodeJxl(JNIEnv* env, jclass, jint width, jint height,
                                    jboolean xyb, jbyteArray pixels, jbyteArray) {
     JxlEncoder* enc = JxlEncoderCreate(nullptr);
 
+    // InitBasicInfo, not memset(0): this snapshot rejects orientation == 0
+    // ("Invalid value for orientation field") and num_extra_channels == 0 when
+    // alpha_bits is set — both API_USAGE (0x81) failures.
     JxlBasicInfo info;
-    memset(&info, 0, sizeof(info));
+    JxlEncoderInitBasicInfo(&info);
     info.xsize = width;
     info.ysize = height;
     info.num_color_channels = 3;
+    info.num_extra_channels = hasAlpha ? 1 : 0;
     // bitDepth: 8 and 16 are integer samples; 32 means float16 pixels.
     if (bitDepth == 32) {
         info.bits_per_sample = 16;
