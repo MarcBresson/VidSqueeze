@@ -64,6 +64,9 @@ data class SheetUi(
     val dirty: Boolean get() =
         draft.params != base.params || draft.imageParams != base.imageParams || draft.export != base.export
     val canStart: Boolean get() = !preview.hasErrors && draft.isValid()
+
+    /** A preset with no kind at all cannot be stored; the save actions stay disabled until one is on. */
+    val canSave: Boolean get() = draft.isValid()
 }
 
 /** Route/editor id meaning "start a blank, unsaved preset" rather than an existing one. */
@@ -168,14 +171,17 @@ class CompressionSheetViewModel @Inject constructor(
         recompute()
     }
 
-    /** Toggles a kind on the draft. At least one kind must stay enabled. */
+    /**
+     * Toggles a kind on the draft. Both kinds can be off while editing; saving and starting are
+     * gated on [Preset.isValid], so a both-off draft can be explored but never stored or run.
+     */
     fun setKindEnabled(kind: MediaKind, enabled: Boolean) {
         _ui.update { ui ->
             val candidate = when (kind) {
                 MediaKind.VIDEO -> ui.draft.copy(params = if (enabled) ui.draft.params ?: FfmpegParams() else null)
                 MediaKind.IMAGE -> ui.draft.copy(imageParams = if (enabled) ui.draft.imageParams ?: ImageParams() else null)
             }
-            if (!candidate.isValid()) ui else ui.copy(draft = candidate)
+            ui.copy(draft = candidate)
         }
         recompute()
     }
@@ -190,20 +196,21 @@ class CompressionSheetViewModel @Inject constructor(
         recompute()
     }
 
-    /** Stores the working copy as a new preset and selects it. */
+    /** Stores the working copy as a new preset and selects it. A both-off draft is refused. */
     fun saveAs(name: String) {
         viewModelScope.launch {
             val d = _ui.value.draft
+            if (!d.isValid()) return@launch
             select(presets.create(name, d.params, d.imageParams, d.export))
             _ui.update { it.copy(message = SheetMessage.Saved) }
         }
     }
 
-    /** Writes the working copy over the selected user preset. */
+    /** Writes the working copy over the selected user preset. A both-off draft is refused. */
     fun updateSelected() {
         viewModelScope.launch {
             val ui = _ui.value
-            if (ui.base.builtIn) return@launch
+            if (ui.base.builtIn || !ui.draft.isValid()) return@launch
             val updated = ui.draft.copy(id = ui.base.id, name = ui.base.name)
             if (presets.update(updated)) {
                 select(updated)

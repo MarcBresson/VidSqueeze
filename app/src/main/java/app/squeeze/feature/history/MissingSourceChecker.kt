@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.MediaStore
 import app.squeeze.data.BatchItemEntity
 import app.squeeze.data.FinalizeState
+import app.squeeze.data.ItemStatus
 import app.squeeze.engine.MediaKind
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -39,6 +40,22 @@ class MissingSourceChecker(private val probe: SourceProbe) {
         }
     } catch (_: Exception) {
         true // unreadable source: treat as missing
+    }
+
+    /**
+     * True when the item's RESULT can no longer be opened: a saved or replaced copy deleted from
+     * the library, or a staged file removed. False when there is no result at all (nothing to
+     * open), and for items that never finished.
+     */
+    fun isResultMissing(item: BatchItemEntity): Boolean = try {
+        when {
+            item.status != ItemStatus.DONE -> false
+            item.stagedPath != null -> !probe.fileExists(item.stagedPath)
+            item.finalUri != null -> !probe.contentUriExists(item.finalUri)
+            else -> false
+        }
+    } catch (_: Exception) {
+        true // unreadable result: treat as missing
     }
 }
 

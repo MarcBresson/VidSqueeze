@@ -103,9 +103,11 @@ Stats are computed from `Item` joined with `Batch`, filtered by period, grouped 
 
 - Photos ride the same queue, staging, finalize and history pipeline as videos. A preset now has
   an optional `params` (video) **and** an optional `imageParams` (photos); at least one must be
-  set (`Preset.isValid`). The preset editor shows Video/Photos tabs, each with a switch inside the
-  tab and a kind icon that is filled and tinted while enabled, outlined while disabled; both off
-  is refused. Rows in the preset list show one icon-led line per enabled kind (movie icon + video
+  set (`Preset.isValid`). The preset editor shows Video/Photos tabs whose content starts with the
+  kind's enable switch, while the tab itself keeps a kind icon that is filled and tinted while
+  enabled, outlined while disabled; both kinds can be switched off while editing, but a preset
+  with no kind cannot be saved (Update / Save as stay disabled and a note says why). Rows in the
+  preset list show one icon-led line per enabled kind (movie icon + video
   settings, image icon + photo settings, primary/tertiary tints), while the compression sheet
   picker still carries Video/Photos pills, and a
   preset is greyed out when the selection includes a kind it cannot compress (`presetUsable`;
@@ -137,7 +139,10 @@ Stats are computed from `Item` joined with `Batch`, filtered by period, grouped 
   picker URIs carry no MediaStore id) are never tagged "Original missing": their recorded source
   is the app's own import copy, which the worker deletes when the item finishes, and the true
   original cannot be re-checked. The same applies to replaced items; the missing tag itself only
-  renders on an expanded row, and the collapsed row no longer shows a Photos/Videos pill.
+  renders on an expanded row, and the collapsed row no longer shows a Photos/Videos pill. A result
+  whose file can no longer be opened (a saved or replaced copy deleted from the library, a staged
+  file removed) hides the row's open and share buttons (`MissingSourceChecker.isResultMissing`,
+  re-checked when the row opens).
 - Photo compare: `CompareScreen` renders `CompareUi.Ready` of `kind == IMAGE` as two
   side-by-side decoded bitmaps (`ImageCompare`) instead of the synced media3 players.
 - The compression sheet opens on the Photos tab when the selection is photos-only (the video

@@ -2,6 +2,7 @@ package app.squeeze.feature.history
 
 import app.squeeze.data.BatchItemEntity
 import app.squeeze.data.FinalizeState
+import app.squeeze.data.ItemStatus
 import app.squeeze.engine.MediaKind
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -49,6 +50,13 @@ private fun sourceItem(
     kind = kind,
     finalizeState = finalizeState,
 )
+
+/** A finished item; the result fields matter to [MissingSourceChecker.isResultMissing]. */
+private fun resultItem(
+    status: ItemStatus = ItemStatus.DONE,
+    stagedPath: String? = null,
+    finalUri: String? = null,
+) = sourceItem().copy(status = status, stagedPath = stagedPath, finalUri = finalUri, finalizeState = FinalizeState.SAVED)
 
 class MissingSourceCheckerTest {
     @Test
@@ -113,5 +121,40 @@ class MissingSourceCheckerTest {
         assertTrue(file.isMissing(sourceItem(sourceUri = "file:///data/original.mp4")))
         val content = MissingSourceChecker(FakeProbe(throwOn = "content"))
         assertTrue(content.isMissing(sourceItem(sourceUri = "content://media/external/video/9")))
+    }
+
+    @Test
+    fun savedCopyDeletedFromLibraryIsResultMissing() {
+        val checker = MissingSourceChecker(FakeProbe(content = false))
+        assertTrue(checker.isResultMissing(resultItem(finalUri = "content://media/external/video/9")))
+        val there = MissingSourceChecker(FakeProbe(content = true))
+        assertFalse(there.isResultMissing(resultItem(finalUri = "content://media/external/video/9")))
+    }
+
+    @Test
+    fun stagedFileGoneIsResultMissing() {
+        val gone = MissingSourceChecker(FakeProbe(file = false))
+        assertTrue(gone.isResultMissing(resultItem(stagedPath = "/data/staged.mp4")))
+        val there = MissingSourceChecker(FakeProbe(file = true))
+        assertFalse(there.isResultMissing(resultItem(stagedPath = "/data/staged.mp4")))
+    }
+
+    @Test
+    fun noResultAtAllIsNotResultMissing() {
+        val checker = MissingSourceChecker(FakeProbe(content = false))
+        assertFalse(checker.isResultMissing(resultItem()))
+    }
+
+    @Test
+    fun unfinishedItemIsNotResultMissing() {
+        // A failed item has nothing to open, whatever stale result fields it carries.
+        val checker = MissingSourceChecker(FakeProbe(content = false))
+        assertFalse(checker.isResultMissing(resultItem(status = ItemStatus.FAILED, finalUri = "content://media/external/video/9")))
+    }
+
+    @Test
+    fun probeThrowingIsResultMissing() {
+        val checker = MissingSourceChecker(FakeProbe(throwOn = "content"))
+        assertTrue(checker.isResultMissing(resultItem(finalUri = "content://media/external/video/9")))
     }
 }

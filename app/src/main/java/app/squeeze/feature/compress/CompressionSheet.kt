@@ -130,12 +130,13 @@ fun PresetHeader(ui: SheetUi, vm: CompressionSheetViewModel) {
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.sheet_save_as)) },
+                    enabled = ui.canSave,
                     onClick = { menu = false; nameDialog = NameDialog.SaveAs },
                 )
                 if (!ui.base.builtIn) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.sheet_update)) },
-                        enabled = ui.dirty,
+                        enabled = ui.dirty && ui.canSave,
                         onClick = { menu = false; vm.updateSelected() },
                     )
                 }
@@ -156,8 +157,8 @@ fun PresetHeader(ui: SheetUi, vm: CompressionSheetViewModel) {
 
     if (ui.dirty) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (!ui.base.builtIn) Button(onClick = vm::updateSelected) { Text(stringResource(R.string.sheet_update)) }
-            TextButton(onClick = { nameDialog = NameDialog.SaveAs }) { Text(stringResource(R.string.sheet_save_as)) }
+            if (!ui.base.builtIn) Button(enabled = ui.canSave, onClick = vm::updateSelected) { Text(stringResource(R.string.sheet_update)) }
+            TextButton(enabled = ui.canSave, onClick = { nameDialog = NameDialog.SaveAs }) { Text(stringResource(R.string.sheet_save_as)) }
             TextButton(onClick = vm::revert) { Text(stringResource(R.string.sheet_revert)) }
         }
     }
@@ -165,6 +166,7 @@ fun PresetHeader(ui: SheetUi, vm: CompressionSheetViewModel) {
     nameDialog?.let { kind ->
         NameInputDialog(
             initial = if (kind == NameDialog.Rename) ui.base.name else "",
+            confirmEnabled = kind != NameDialog.SaveAs || ui.canSave,
             onDismiss = { nameDialog = null },
             onConfirm = { name ->
                 nameDialog = null
@@ -186,13 +188,13 @@ fun PresetHeader(ui: SheetUi, vm: CompressionSheetViewModel) {
 private enum class NameDialog { SaveAs, Rename }
 
 @Composable
-private fun NameInputDialog(initial: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+private fun NameInputDialog(initial: String, confirmEnabled: Boolean = true, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var name by remember { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.sheet_name_label)) },
         text = { OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true) },
-        confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { onConfirm(name.trim()) }) { Text(stringResource(R.string.sheet_ok)) } },
+        confirmButton = { TextButton(enabled = name.isNotBlank() && confirmEnabled, onClick = { onConfirm(name.trim()) }) { Text(stringResource(R.string.sheet_ok)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.sheet_cancel)) } },
     )
 }

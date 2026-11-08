@@ -171,6 +171,7 @@ private fun HistoryList(vm: HistoryViewModel, target: Long?, onTargetConsumed: (
     val jobs by vm.filteredJobs.collectAsStateWithLifecycle()
     val filters by vm.filters.collectAsStateWithLifecycle()
     val missing by vm.missing.collectAsStateWithLifecycle()
+    val resultMissing by vm.resultMissing.collectAsStateWithLifecycle()
     var logsOf by rememberSaveable { mutableStateOf<Long?>(null) }
     val listState = rememberLazyListState()
     var highlightedBatch by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -212,6 +213,7 @@ private fun HistoryList(vm: HistoryViewModel, target: Long?, onTargetConsumed: (
             HistoryCard(
                 entry,
                 missing,
+                resultMissing,
                 vm::hasLog,
                 vm.batchActions,
                 vm.itemActions,
@@ -230,6 +232,7 @@ private fun HistoryList(vm: HistoryViewModel, target: Long?, onTargetConsumed: (
 private fun HistoryCard(
     entry: HistoryEntry,
     missing: Map<Long, Boolean>,
+    resultMissing: Map<Long, Boolean>,
     hasLog: (Long) -> Boolean,
     batchActions: BatchResultActions,
     itemActions: ItemResultActions,
@@ -249,10 +252,10 @@ private fun HistoryCard(
     ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (single != null) {
-                ItemBlock(single, entry.batch.presetName, missing, hasLog, itemActions, onCompare, onShowLogs, onCheckOriginal, alwaysActions = true, initiallyOpen = expandItem)
+                ItemBlock(single, entry.batch.presetName, missing, resultMissing, hasLog, itemActions, onCompare, onShowLogs, onCheckOriginal, alwaysActions = true, initiallyOpen = expandItem)
             } else {
                 BatchHeader(entry, batchActions)
-                entry.items.forEach { ItemBlock(it, presetName = null, missing, hasLog, itemActions, onCompare, onShowLogs, onCheckOriginal, alwaysActions = false) }
+                entry.items.forEach { ItemBlock(it, presetName = null, missing, resultMissing, hasLog, itemActions, onCompare, onShowLogs, onCheckOriginal, alwaysActions = false) }
             }
         }
     }
@@ -314,6 +317,7 @@ private fun ItemBlock(
     item: BatchItemEntity,
     presetName: String?,
     missing: Map<Long, Boolean>,
+    resultMissing: Map<Long, Boolean>,
     hasLog: (Long) -> Boolean,
     itemActions: ItemResultActions,
     onCompare: (Long) -> Unit,
@@ -327,7 +331,7 @@ private fun ItemBlock(
     val result = remember(item.id, item.status, item.finalUri, item.stagedPath) { resultVideo(context, item) }
     val thumbnail = remember(item.id, result) { result ?: sourceVideo(item) }
     // The Play-original button rides on the original still existing, so re-check each time the row opens.
-    if (open && canPlayOriginal(item)) LaunchedEffect(item.id) { onCheckOriginal(item) }
+    if (open && (canPlayOriginal(item) || result != null)) LaunchedEffect(item.id) { onCheckOriginal(item) }
     Row(
         Modifier.fillMaxWidth().clickable { open = !open },
         verticalAlignment = Alignment.Top,
@@ -343,9 +347,11 @@ private fun ItemBlock(
                         Icon(Icons.Default.Compare, contentDescription = stringResource(R.string.compare_open), tint = MaterialTheme.colorScheme.primary)
                     }
                 }
-                result?.let { PlayButton(it, Modifier.padding(start = 2.dp)) }
+                // The open and share buttons ride on the result file still being there.
+                val resultGone = result != null && resultMissing[item.id] == true
+                if (result != null && !resultGone) PlayButton(result, Modifier.padding(start = 2.dp))
                 // A finished video can be sent on again, whatever was decided about its result.
-                if (result != null && item.finalizeState != FinalizeState.PENDING) {
+                if (!resultGone && result != null && item.finalizeState != FinalizeState.PENDING) {
                     IconButton(
                         onClick = { context.startActivity(FinalizeActivity.itemIntent(context, item.id, FinalizeAction.SHARE)) },
                         modifier = Modifier.padding(start = 2.dp).size(36.dp),

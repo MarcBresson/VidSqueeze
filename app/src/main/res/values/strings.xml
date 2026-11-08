@@ -91,6 +91,8 @@
     <string name="img_preset_tab_video">Video</string>
     <string name="img_preset_tab_photos">Photos</string>
     <string name="img_tab_one_required">At least one of videos or photos must stay enabled.</string>
+    <string name="preset_toggle_video">Compress videos</string>
+    <string name="preset_toggle_photos">Compress photos</string>
     <string name="img_format">Output format</string>
     <string name="img_quality">Quality</string>
     <string name="img_quality_value">%1$d / 100</string>

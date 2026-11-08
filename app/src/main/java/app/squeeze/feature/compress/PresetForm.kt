@@ -36,8 +36,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import app.squeeze.R
@@ -78,29 +76,29 @@ fun PresetForm(ui: SheetUi, vm: CompressionSheetViewModel, modifier: Modifier = 
         PrimaryTabRow(selectedTabIndex = tab) {
             KindTab(
                 selected = tab == 0,
+                onClick = { tabTouched = true; tab = 0 },
                 label = stringResource(R.string.img_preset_tab_video),
                 icon = if (ui.draft.params != null) Icons.Filled.Movie else Icons.Outlined.Movie,
-                tint = MaterialTheme.colorScheme.primary,
                 enabled = ui.draft.params != null,
-                onSelect = { tabTouched = true; tab = 0 },
-                onToggle = { vm.setKindEnabled(MediaKind.VIDEO, it) },
+                tint = MaterialTheme.colorScheme.primary,
             )
             KindTab(
                 selected = tab == 1,
+                onClick = { tabTouched = true; tab = 1 },
                 label = stringResource(R.string.img_preset_tab_photos),
                 icon = if (ui.draft.imageParams != null) Icons.Filled.Image else Icons.Outlined.Image,
-                tint = MaterialTheme.colorScheme.tertiary,
                 enabled = ui.draft.imageParams != null,
-                onSelect = { tabTouched = true; tab = 1 },
-                onToggle = { vm.setKindEnabled(MediaKind.IMAGE, it) },
+                tint = MaterialTheme.colorScheme.tertiary,
             )
         }
         if (ui.draft.params == null && ui.draft.imageParams == null) {
             Note(stringResource(R.string.img_tab_one_required), error = true)
         }
         if (tab == 0) {
+            KindToggle(stringResource(R.string.preset_toggle_video), ui.draft.params != null) { vm.setKindEnabled(MediaKind.VIDEO, it) }
             ui.draft.params?.let { EncodingSection(it, ui.hardware, vm) }
         } else {
+            KindToggle(stringResource(R.string.preset_toggle_photos), ui.draft.imageParams != null) { vm.setKindEnabled(MediaKind.IMAGE, it) }
             ui.draft.imageParams?.let { ImageEncodingSection(it, vm) }
         }
         ExportSection(ui, vm)
@@ -108,20 +106,19 @@ fun PresetForm(ui: SheetUi, vm: CompressionSheetViewModel, modifier: Modifier = 
 }
 
 /**
- * A Video/Photos tab: the kind icon is filled and tinted while enabled and outlined while disabled,
- * and the switch inside the tab toggles that kind on and off.
+ * A Video/Photos tab: the kind icon is the tab-name clue for that kind's switch, which lives at
+ * the top of the tab's content — filled and tinted while enabled, outlined while disabled.
  */
 @Composable
 private fun KindTab(
     selected: Boolean,
+    onClick: () -> Unit,
     label: String,
     icon: ImageVector,
-    tint: Color,
     enabled: Boolean,
-    onSelect: () -> Unit,
-    onToggle: (Boolean) -> Unit,
+    tint: Color,
 ) {
-    Tab(selected = selected, onClick = onSelect) {
+    Tab(selected = selected, onClick = onClick) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -133,12 +130,16 @@ private fun KindTab(
                 modifier = Modifier.size(20.dp),
             )
             Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
-            Switch(
-                checked = enabled,
-                onCheckedChange = onToggle,
-                modifier = Modifier.semantics { contentDescription = label },
-            )
         }
+    }
+}
+
+/** The enable/disable switch of one kind, at the top of its tab's content. */
+@Composable
+private fun KindToggle(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Text(label, style = MaterialTheme.typography.bodyMedium)
     }
 }
 

@@ -88,6 +88,10 @@ class HistoryViewModel @Inject constructor(
     private val _missing = MutableStateFlow<Map<Long, Boolean>>(emptyMap())
     val missing: StateFlow<Map<Long, Boolean>> = _missing
 
+    /** itemId -> whether the compressed RESULT file is gone; entries not in the map are "unknown yet". */
+    private val _resultMissing = MutableStateFlow<Map<Long, Boolean>>(emptyMap())
+    val resultMissing: StateFlow<Map<Long, Boolean>> = _resultMissing
+
     private val checker = MissingSourceChecker(probe)
     private val sizeBucketsFlow = settings.sizeFilterBucketsMb
 
@@ -143,11 +147,13 @@ class HistoryViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     init {
-        // Best-effort missing-original checks, one per never-checked item, off the main thread.
+        // Best-effort missing checks, one per never-checked item, off the main thread.
         viewModelScope.launch(Dispatchers.IO) {
             history.collect { entries ->
                 val known = _missing.value
+                val knownResults = _resultMissing.value
                 val updates = mutableMapOf<Long, Boolean>()
+                val resultUpdates = mutableMapOf<Long, Boolean>()
                 entries?.forEach { entry ->
                     entry.items.forEach { item ->
                         // One check per item with a locatable original; known ids are never re-checked.
@@ -156,9 +162,16 @@ class HistoryViewModel @Inject constructor(
                         ) {
                             updates[item.id] = checker.isMissing(item)
                         }
+                        // One check per finished item with a locatable result (saved copy or staged file).
+                        if (item.status == ItemStatus.DONE && item.id !in knownResults && item.id !in resultUpdates &&
+                            (item.stagedPath != null || item.finalUri != null)
+                        ) {
+                            resultUpdates[item.id] = checker.isResultMissing(item)
+                        }
                     }
                 }
                 if (updates.isNotEmpty()) _missing.value = known + updates
+                if (resultUpdates.isNotEmpty()) _resultMissing.value = knownResults + resultUpdates
             }
         }
     }
@@ -167,11 +180,13 @@ class HistoryViewModel @Inject constructor(
         _filters.value = filters
     }
 
-    /** Re-checks one item's original, for the Play-original button shown when its row is expanded. */
+    /** Re-checks one item's original and result, for the row's buttons shown while it is expanded. */
     fun refreshMissing(item: BatchItemEntity) {
         viewModelScope.launch(Dispatchers.IO) {
-            val gone = checker.isMissing(item)
-            _missing.value = _missing.value + (item.id to gone)
+            _missing.value = _missing.value + (item.id to checker.isMissing(item))
+            if (item.status == ItemStatus.DONE && (item.stagedPath != null || item.finalUri != null)) {
+                _resultMissing.value = _resultMissing.value + (item.id to checker.isResultMissing(item))
+            }
         }
     }
 
