@@ -467,12 +467,12 @@ private fun sizesText(context: Context, item: BatchItemEntity): String {
     }
 }
 
-/** The compressed file, when there still is one to play: the saved or replaced video, or the staged result. */
+/** The compressed file, when there still is one to play: the saved or replaced media, or the staged result. */
 private fun resultVideo(context: Context, item: BatchItemEntity): VideoRef? {
     if (item.status != ItemStatus.DONE) return null
-    item.finalUri?.let { return VideoRef(it.toUri()) }
+    item.finalUri?.let { return VideoRef(it.toUri(), kind = item.kind) }
     val staged = item.stagedPath?.let(::File)?.takeIf { it.isFile } ?: return null
-    return VideoRef.staged(context, staged)
+    return VideoRef.staged(context, staged, item.kind)
 }
 
 /** A saved copy of a library video can be compared with its original, and so can any result still waiting for a decision. */
@@ -495,7 +495,7 @@ internal fun canPlayOriginal(item: BatchItemEntity): Boolean =
 /** What to draw when there is no result: the original, as far as it can still be read. */
 private fun sourceVideo(item: BatchItemEntity): VideoRef {
     val uri = item.sourceUri.toUri()
-    return if (uri.scheme == "file") VideoRef(uri, uri.path?.let(::File)) else VideoRef(uri)
+    return if (uri.scheme == "file") VideoRef(uri, uri.path?.let(::File), item.kind) else VideoRef(uri, kind = item.kind)
 }
 
 private fun finalizeLabel(item: BatchItemEntity): Int? = if (item.status != ItemStatus.DONE) null else when (item.finalizeState) {

@@ -136,7 +136,7 @@ class Finalizer @Inject constructor(
         val staged = stagedFile(item)
         val original = item.mediaStoreId?.takeIf { !item.isImported }?.let { store.originalInfo(it, item.kind) }
         val uri = store.createCopy(
-            staged, staged.name, original?.relativePath, FinalizePlanner.mimeType(staged.extension), original?.dateTakenMs,
+            staged, staged.name, original?.relativePath, FinalizePlanner.mimeType(staged.extension), original?.dateTakenMs, item.kind,
         )
         done(item, staged, FinalizeState.SAVED, uri)
         return report.copy(
@@ -160,7 +160,7 @@ class Finalizer @Inject constructor(
         val original = store.originalInfo(item.mediaStoreId, item.kind)
         val copy = store.createCopy(
             staged, FinalizePlanner.swappedName(item.displayName, staged.extension), original?.relativePath,
-            FinalizePlanner.mimeType(staged.extension), original?.dateTakenMs,
+            FinalizePlanner.mimeType(staged.extension), original?.dateTakenMs, item.kind,
         )
         done(item, staged, FinalizeState.REPLACED, copy)
         val next = report.replacedWith(item)
@@ -204,9 +204,17 @@ class Finalizer @Inject constructor(
 
     private fun resolverName(uri: Uri): String = store.displayName(uri) ?: throw IllegalStateException("The saved copy is gone")
 
-    /** The staged file, after checking with ffprobe that it is a faithful copy of the source. */
+    /**
+     * The staged file, after checking that it is a faithful copy of the source. FFmpeg-written
+     * outputs are re-probed; WebP and JPEG XL outputs were written by the platform / libjxl
+     * encoders, which the bundled ffprobe cannot read, so only their existence and size are checked.
+     */
     private suspend fun verifiedStaged(item: BatchItemEntity): File {
         val staged = stagedFile(item)
+        if (item.kind == MediaKind.IMAGE && staged.extension.lowercase() in PLATFORM_IMAGE_EXTENSIONS) {
+            if (staged.length() <= 0) throw IllegalStateException("The compressed image is empty.")
+            return staged
+        }
         val probed = engine.probe(staged.absolutePath, staged.extension)
         val problem = if (item.kind == MediaKind.IMAGE) OutputVerifier.imageProblem(probed)
         else OutputVerifier.problem(item.durationMs, probed)
@@ -268,7 +276,8 @@ class Finalizer @Inject constructor(
         } else {
             Intent(Intent.ACTION_SEND_MULTIPLE).putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
         }
-        send.type = "video/*"
+        // A mixed batch shares as video/* (the common case); an all-photo batch as image/*.
+        send.type = if (files.all { it.extension.lowercase() in IMAGE_EXTENSIONS }) "image/*" else "video/*"
         send.clipData = ClipData.newRawUri(null, uris.first()).also { clip -> uris.drop(1).forEach { clip.addItem(ClipData.Item(it)) } }
         send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         Intent.createChooser(send, null).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -282,5 +291,11 @@ class Finalizer @Inject constructor(
 
     private companion object {
         const val TAG = "Finalizer"
+
+        /** Image outputs ffprobe cannot decode (written by the platform / libjxl encoders). */
+        val PLATFORM_IMAGE_EXTENSIONS = setOf("webp", "jxl")
+
+        /** Every image extension this app can output; a share of only these is a photo share. */
+        val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "avif", "webp", "jxl")
     }
 }

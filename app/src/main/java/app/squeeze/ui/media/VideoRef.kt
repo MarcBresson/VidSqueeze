@@ -7,21 +7,25 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import app.squeeze.R
+import app.squeeze.engine.MediaKind
 import java.io.File
 
-/** A video the UI can show a thumbnail of and play: a content [uri], plus the [file] behind it when it is one of ours. */
-data class VideoRef(val uri: Uri, val file: File? = null) {
+/**
+ * A piece of media the UI can show a thumbnail of and open: a content [uri], plus the [file]
+ * behind it when it is one of ours, and whether it is a photo ([MediaKind.IMAGE]) or a video.
+ */
+data class VideoRef(val uri: Uri, val file: File? = null, val kind: MediaKind = MediaKind.VIDEO) {
     companion object {
-        /** A staged result, exposed to the player through the app's FileProvider. */
-        fun staged(context: Context, file: File): VideoRef =
-            VideoRef(FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file), file)
+        /** A staged result, exposed to other apps through the app's FileProvider. */
+        fun staged(context: Context, file: File, kind: MediaKind = MediaKind.VIDEO): VideoRef =
+            VideoRef(FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file), file, kind)
     }
 }
 
-/** Opens [video] in the user's default video player. */
-fun Context.playVideo(video: VideoRef) {
+/** Opens [media] in the user's default viewer, as a video or a photo. */
+fun Context.playVideo(media: VideoRef) {
     val intent = Intent(Intent.ACTION_VIEW)
-        .setDataAndType(video.uri, "video/*")
+        .setDataAndType(media.uri, if (media.kind == MediaKind.IMAGE) "image/*" else "video/*")
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
     try {
         startActivity(intent)

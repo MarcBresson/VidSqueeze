@@ -121,8 +121,19 @@ Stats are computed from `Item` joined with `Batch`, filtered by period, grouped 
   `keepLocation` is off, resets orientation — the pixels are rotated at encode, since image
   demuxers ignore EXIF — and thumbnails). PNG/AVIF/JXL cannot carry it here and get a log note.
 - Output: `MediaStoreWriter` writes images into the image collection with a `Pictures/Squeeze`
-  fallback; everything else (consent flow, replace/save/reshare, results retention) is shared
-  with videos. Auto compression and the compare screen remain video-only (planned follow-up).
+  fallback (`createCopy`/`itemUri`/`originalInfo` all take the item's `kind`); everything else
+  (consent flow, replace/save/reshare, results retention) is shared with videos. Replace
+  verification re-probes FFmpeg-written outputs (JPEG/PNG/AVIF); WebP and JXL outputs cannot be
+  read by the bundled ffprobe, so only their existence and size are checked. Auto compression
+  of photos remains video-only (planned follow-up).
+- Photo items in history are kind-aware end to end: `MissingSourceChecker` looks a photo's
+  MediaStore id up in the image collection (not video), thumbnails decode via
+  `ThumbnailUtils.createImageThumbnail` with a photo placeholder icon, and opening a result
+  uses `ACTION_VIEW` with `image/*`. Sharing an all-photo batch shares `image/*`.
+- Photo compare: `CompareScreen` renders `CompareUi.Ready` of `kind == IMAGE` as two
+  side-by-side decoded bitmaps (`ImageCompare`) instead of the synced media3 players.
+- The compression sheet opens on the Photos tab when the selection is photos-only (the video
+  tab stays the default otherwise, and a manual tab choice is never overridden).
 - Room moved to schema 3: `kind` on `batch`/`batch_item`, `imageParamsJson` on `preset`.
 
 ## Settings, permissions, about (as built in M7)

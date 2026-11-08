@@ -1,19 +1,21 @@
 package app.squeeze.feature.history
 
 import app.squeeze.data.BatchItemEntity
+import app.squeeze.engine.MediaKind
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 private class FakeProbe(
     val mediaStore: Boolean = true,
+    val mediaStoreImages: Boolean = mediaStore,
     val content: Boolean = true,
     val file: Boolean = true,
     val throwOn: String? = null,
 ) : SourceProbe {
-    override fun mediaStoreExists(mediaStoreId: Long): Boolean {
+    override fun mediaStoreExists(mediaStoreId: Long, kind: MediaKind): Boolean {
         if (throwOn == "mediaStore") error("boom")
-        return mediaStore
+        return if (kind == MediaKind.IMAGE) mediaStoreImages else mediaStore
     }
 
     override fun contentUriExists(uri: String): Boolean {
@@ -32,6 +34,7 @@ private fun sourceItem(
     sourceUri: String = "file:///data/original.mp4",
     mediaStoreId: Long? = null,
     isImported: Boolean = false,
+    kind: MediaKind = MediaKind.VIDEO,
 ) = BatchItemEntity(
     id = 1,
     batchId = 1,
@@ -41,6 +44,7 @@ private fun sourceItem(
     isImported = isImported,
     displayName = "video.mp4",
     originalSize = 1000,
+    kind = kind,
 )
 
 class MissingSourceCheckerTest {
@@ -54,6 +58,15 @@ class MissingSourceCheckerTest {
     fun mediaStoreIdMovedIsNotMissing() {
         val checker = MissingSourceChecker(FakeProbe(mediaStore = true))
         assertFalse(checker.isMissing(sourceItem(mediaStoreId = 42)))
+    }
+
+    @Test
+    fun photoLookedUpInTheImageCollection() {
+        // A photo whose id exists in Images but not in Video must not read as missing.
+        val checker = MissingSourceChecker(FakeProbe(mediaStore = false, mediaStoreImages = true))
+        assertFalse(checker.isMissing(sourceItem(mediaStoreId = 42, kind = MediaKind.IMAGE)))
+        val gone = MissingSourceChecker(FakeProbe(mediaStoreImages = false))
+        assertTrue(gone.isMissing(sourceItem(mediaStoreId = 42, kind = MediaKind.IMAGE)))
     }
 
     @Test

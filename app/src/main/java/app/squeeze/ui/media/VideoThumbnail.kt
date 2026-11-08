@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,6 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.squeeze.R
+import app.squeeze.engine.MediaKind
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -39,19 +41,25 @@ private val cache = object : LruCache<String, Bitmap>(16 * 1024 * 1024) {
     override fun sizeOf(key: String, value: Bitmap) = value.byteCount
 }
 
-private fun load(context: Context, video: VideoRef): Bitmap? = try {
-    video.file?.let { ThumbnailUtils.createVideoThumbnail(it, THUMBNAIL_SIZE, null) }
-        ?: context.contentResolver.loadThumbnail(video.uri, THUMBNAIL_SIZE, null)
+private fun load(context: Context, media: VideoRef): Bitmap? = try {
+    when (media.kind) {
+        MediaKind.VIDEO ->
+            media.file?.let { ThumbnailUtils.createVideoThumbnail(it, THUMBNAIL_SIZE, null) }
+                ?: context.contentResolver.loadThumbnail(media.uri, THUMBNAIL_SIZE, null)
+        MediaKind.IMAGE ->
+            media.file?.let { ThumbnailUtils.createImageThumbnail(it, THUMBNAIL_SIZE, null) }
+                ?: context.contentResolver.loadThumbnail(media.uri, THUMBNAIL_SIZE, null)
+    }
 } catch (_: Exception) {
     null
 }
 
-/** A rounded square frame of the video; a movie icon stands in while it loads or when the file is gone. */
+/** A rounded square frame of the media; a film or photo icon stands in while it loads or when the file is gone. */
 @Composable
-fun VideoThumbnail(video: VideoRef?, modifier: Modifier = Modifier, size: Dp = 56.dp) {
+fun VideoThumbnail(media: VideoRef?, modifier: Modifier = Modifier, size: Dp = 56.dp) {
     val context = LocalContext.current
-    val bitmap by produceState<Bitmap?>(initialValue = video?.let { cache.get(it.uri.toString()) }, video) {
-        val ref = video ?: return@produceState
+    val bitmap by produceState<Bitmap?>(initialValue = media?.let { cache.get(it.uri.toString()) }, media) {
+        val ref = media ?: return@produceState
         val key = ref.uri.toString()
         value = cache.get(key) ?: withContext(Dispatchers.IO) { load(context, ref) }?.also { cache.put(key, it) }
     }
@@ -63,7 +71,8 @@ fun VideoThumbnail(video: VideoRef?, modifier: Modifier = Modifier, size: Dp = 5
         if (frame != null) {
             Image(frame.asImageBitmap(), contentDescription = null, modifier = Modifier.size(size), contentScale = ContentScale.Crop)
         } else {
-            Icon(Icons.Filled.Movie, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            val placeholder = if (media?.kind == MediaKind.IMAGE) Icons.Filled.Image else Icons.Filled.Movie
+            Icon(placeholder, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

@@ -10,6 +10,7 @@ import app.squeeze.data.FinalizeState
 import app.squeeze.data.ItemStatus
 import app.squeeze.data.ResultsRepository
 import app.squeeze.data.SettingsRepository
+import app.squeeze.engine.MediaKind
 import app.squeeze.finalize.FinalizePlanner
 import app.squeeze.finalize.Finalizer
 import app.squeeze.finalize.MediaStoreWriter
@@ -40,11 +41,13 @@ sealed interface CompareUi {
         val compressed: VideoRef,
         val originalSize: Long,
         val compressedSize: Long,
-        /** The file name the compressed video will have once it replaces the original. */
+        /** The file name the compressed media will have once it replaces the original. */
         val finalName: String,
         val replacing: Boolean = false,
         /** False while the result is still staged: the row's own actions handle replacing then. */
         val canReplace: Boolean = true,
+        /** Photos get a side-by-side image viewer instead of the synced video players. */
+        val kind: MediaKind = MediaKind.VIDEO,
     ) : CompareUi
 }
 
@@ -88,12 +91,13 @@ class CompareViewModel @Inject constructor(
                     item.finalizeState == FinalizeState.PENDING -> item.stagedPath?.let(::File)?.takeIf(File::isFile)?.let { staged ->
                         CompareUi.Ready(
                             name = item.displayName,
-                            original = VideoRef(original),
-                            compressed = VideoRef.staged(context, staged),
+                            original = VideoRef(original, kind = item.kind),
+                            compressed = VideoRef.staged(context, staged, item.kind),
                             originalSize = item.originalSize,
                             compressedSize = item.outputSize ?: staged.length(),
                             finalName = staged.name,
                             canReplace = false,
+                            kind = item.kind,
                         )
                     } ?: CompareUi.Unavailable
                     item.finalizeState != FinalizeState.SAVED || item.isImported || item.mediaStoreId == null -> CompareUi.Unavailable
@@ -105,11 +109,12 @@ class CompareViewModel @Inject constructor(
                             val keep = settings.replaceKeepsOriginalName.first()
                             CompareUi.Ready(
                                 name = item.displayName,
-                                original = VideoRef(original),
-                                compressed = VideoRef(copy),
+                                original = VideoRef(original, kind = item.kind),
+                                compressed = VideoRef(copy, kind = item.kind),
                                 originalSize = item.originalSize,
                                 compressedSize = item.outputSize ?: store.length(copy),
                                 finalName = FinalizePlanner.replacementName(item.displayName, store.displayName(copy) ?: item.displayName, keep),
+                                kind = item.kind,
                             )
                         }
                     }

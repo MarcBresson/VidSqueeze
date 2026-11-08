@@ -19,6 +19,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -57,13 +58,18 @@ import java.time.LocalDate
 @Composable
 fun PresetForm(ui: SheetUi, vm: CompressionSheetViewModel, modifier: Modifier = Modifier) {
     var tab by rememberSaveable { mutableStateOf(0) }
+    // A photos-only selection opens on the photo tab — but never yanks the tab from under the user.
+    var tabTouched by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(ui.selectionKinds, ui.draft.imageParams) {
+        if (!tabTouched && ui.selectionKinds == setOf(MediaKind.IMAGE) && ui.draft.imageParams != null) tab = 1
+    }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Choice(
                 selected = tab == 0,
                 label = stringResource(R.string.img_preset_tab_video),
                 enabled = ui.draft.params != null,
-                onClick = { tab = 0 },
+                onClick = { tabTouched = true; tab = 0 },
             )
             Switch(
                 checked = ui.draft.params != null,
@@ -74,7 +80,7 @@ fun PresetForm(ui: SheetUi, vm: CompressionSheetViewModel, modifier: Modifier = 
                 selected = tab == 1,
                 label = stringResource(R.string.img_preset_tab_photos),
                 enabled = ui.draft.imageParams != null,
-                onClick = { tab = 1 },
+                onClick = { tabTouched = true; tab = 1 },
             )
             Switch(
                 checked = ui.draft.imageParams != null,
