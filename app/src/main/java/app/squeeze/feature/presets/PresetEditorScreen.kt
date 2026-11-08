@@ -25,6 +25,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.squeeze.R
 import app.squeeze.feature.compress.CommandPreviewCard
 import app.squeeze.feature.compress.CompressionSheetViewModel
+import app.squeeze.feature.compress.NEW_PRESET_ID
 import app.squeeze.feature.compress.MessageToast
 import app.squeeze.feature.compress.PresetForm
 import app.squeeze.feature.compress.PresetHeader
@@ -34,13 +35,14 @@ import app.squeeze.feature.compress.PresetHeader
 @Composable
 fun PresetEditorScreen(presetId: String, onBack: () -> Unit, vm: CompressionSheetViewModel = hiltViewModel()) {
     val ui by vm.ui.collectAsStateWithLifecycle()
-    LaunchedEffect(presetId) { vm.selectPreset(presetId) }
+    val isNew = presetId == NEW_PRESET_ID
+    LaunchedEffect(presetId) { if (isNew) vm.startNew() else vm.selectPreset(presetId) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.presets_edit_title)) },
+                title = { Text(stringResource(if (isNew) R.string.presets_new_title else R.string.presets_edit_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.presets_back))

@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -35,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.squeeze.R
+import app.squeeze.engine.ImageFormat
+import app.squeeze.engine.ImageParams
 import app.squeeze.engine.MediaKind
 import app.squeeze.ui.Pill
 import app.squeeze.engine.ParamOptions.label
@@ -46,7 +50,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PresetsScreen(onEdit: (String) -> Unit, vm: PresetsViewModel = hiltViewModel()) {
+fun PresetsScreen(onEdit: (String) -> Unit, onNew: () -> Unit, vm: PresetsViewModel = hiltViewModel()) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -76,9 +80,16 @@ fun PresetsScreen(onEdit: (String) -> Unit, vm: PresetsViewModel = hiltViewModel
                 },
             )
         },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = onNew,
+                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                text = { Text(stringResource(R.string.presets_create)) },
+            )
+        },
     ) { padding ->
         val (builtIn, mine) = ui.presets.partition { it.builtIn }
-        LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(bottom = 24.dp)) {
+        LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(bottom = 96.dp)) {
             item { Header(stringResource(R.string.presets_built_in)) }
             items(builtIn, key = { it.id }) { PresetRow(it, it.id == ui.defaultPresetId, onEdit, vm::setDefault) }
             item { Header(stringResource(R.string.presets_yours)) }
@@ -125,25 +136,38 @@ private fun PresetRow(preset: Preset, isDefault: Boolean, onEdit: (String) -> Un
     )
 }
 
-private fun summary(p: Preset): String {
-    val params = p.params ?: run {
-        val ip = p.imageParams
-        return buildList {
-            add(ip?.format?.name?.lowercase()?.replace('_', ' ')?.replaceFirstChar { it.uppercase() } ?: "photos")
-            ip?.quality?.let { add("Q$it") }
-            ip?.maxShortSide?.let { add("${it}p") }
-        }.joinToString(" · ")
-    }
+/** One-line preset description: video settings, then photo settings when the preset handles photos. */
+internal fun summary(p: Preset): String {
     val parts = buildList {
-        add(params.videoCodec.label())
-        when (val r = params.rateControl) {
-            is RateControl.Crf -> if (params.videoCodec != VideoCodec.COPY) add("CRF ${r.value}")
-            is RateControl.BitrateKbps -> add("${r.kbps} kbit/s")
-            is RateControl.PercentOfSource -> add("${r.percent}% of source")
-            is RateControl.ConstantQuality -> add("CQ ${r.value}")
+        p.params?.let { params ->
+            add(params.videoCodec.label())
+            when (val r = params.rateControl) {
+                is RateControl.Crf -> if (params.videoCodec != VideoCodec.COPY) add("CRF ${r.value}")
+                is RateControl.BitrateKbps -> add("${r.kbps} kbit/s")
+                is RateControl.PercentOfSource -> add("${r.percent}% of source")
+                is RateControl.ConstantQuality -> add("CQ ${r.value}")
+            }
+            params.maxShortSide?.let { add("${it}p") }
+            params.fpsMax?.let { add("$it fps") }
         }
-        params.maxShortSide?.let { add("${it}p") }
-        params.fpsMax?.let { add("$it fps") }
+        p.imageParams?.let { ip ->
+            add(imageFormatLabel(ip.format))
+            add(imageQualityLabel(ip))
+            ip.maxShortSide?.let { add("${it}p") }
+        }
     }
+    if (parts.isEmpty()) return "photos" // an invalid preset row still shows something
     return parts.joinToString(" · ")
+}
+
+private fun imageFormatLabel(format: ImageFormat): String =
+    format.name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
+
+/** The format's main quality knob: JPEG-style quality, AVIF CRF, or "lossless" where none applies. */
+internal fun imageQualityLabel(ip: ImageParams): String = when (ip.format) {
+    ImageFormat.JPEG -> "Q${ip.quality}"
+    ImageFormat.WEBP -> if (ip.webpLossless) "lossless" else "Q${ip.quality}"
+    ImageFormat.AVIF -> "CRF ${ip.avifCrf}"
+    ImageFormat.PNG -> "lossless"
+    ImageFormat.JPEG_XL -> if (ip.jxl.modular) "lossless" else "Q${ip.jxl.quality}"
 }

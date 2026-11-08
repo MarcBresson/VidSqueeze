@@ -66,6 +66,9 @@ data class SheetUi(
     val canStart: Boolean get() = !preview.hasErrors && draft.isValid()
 }
 
+/** Route/editor id meaning "start a blank, unsaved preset" rather than an existing one. */
+internal const val NEW_PRESET_ID = "new"
+
 /**
  * State behind the compression sheet and the preset editor: the preset list, the working copy of
  * the selected preset, the files about to be compressed and everything derived from them
@@ -136,6 +139,15 @@ class CompressionSheetViewModel @Inject constructor(
 
     fun selectPreset(id: String) {
         viewModelScope.launch { presets.get(id)?.let { select(it) } }
+    }
+
+    /**
+     * Starts a blank, unsaved draft (the editor's "create preset" entry); "Save as" stores it.
+     * A no-op while such a draft is already loaded, so a recomposition does not wipe edits.
+     */
+    fun startNew() {
+        if (_ui.value.base.id == NEW_PRESET_ID) return
+        select(Preset(id = NEW_PRESET_ID, name = "New preset"))
     }
 
     /** Video settings edit; a no-op while the preset's video tab is disabled. */
@@ -213,7 +225,7 @@ class CompressionSheetViewModel @Inject constructor(
     fun deleteSelected() {
         viewModelScope.launch {
             val ui = _ui.value
-            if (ui.base.builtIn) return@launch
+            if (ui.base.builtIn || ui.base.id == NEW_PRESET_ID) return@launch
             presets.delete(ui.base.id)
             if (ui.defaultPresetId == ui.base.id) settings.setDefaultPreset(BuiltInPresets.SHARE_ID)
             select(presets.getOrDefault(null))

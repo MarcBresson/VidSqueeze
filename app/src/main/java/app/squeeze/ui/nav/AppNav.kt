@@ -38,6 +38,7 @@ import app.squeeze.feature.settings.LicensesScreen
 import app.squeeze.feature.settings.OnboardingScreen
 import app.squeeze.feature.settings.PermissionsScreen
 import app.squeeze.feature.settings.SettingsScreen
+import app.squeeze.feature.compress.NEW_PRESET_ID
 
 object Routes {
     const val HOME = "home"
@@ -45,6 +46,7 @@ object Routes {
     const val HISTORY = "history"
     const val AUTO = "auto"
     const val PRESET_EDIT = "presets/{id}"
+    const val PRESET_NEW = "presets/new"
     const val COMPARE = "compare/{itemId}"
     const val ONBOARDING = "onboarding"
     const val SETTINGS = "settings"
@@ -148,7 +150,10 @@ private fun NavGraphBuilder.appGraph(nav: NavHostController, notificationTarget:
         CompareScreen(onBack = { nav.popBackStack() })
     }
     composable(Routes.PRESETS) {
-        PresetsScreen(onEdit = { nav.navigate(Routes.presetEdit(it)) })
+        PresetsScreen(onEdit = { nav.navigate(Routes.presetEdit(it)) }, onNew = { nav.navigate(Routes.PRESET_NEW) })
+    }
+    composable(Routes.PRESET_NEW) {
+        PresetEditorScreen(presetId = NEW_PRESET_ID, onBack = { nav.popBackStack() })
     }
     composable(Routes.PRESET_EDIT, arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
         PresetEditorScreen(presetId = requireNotNull(entry.arguments?.getString("id")), onBack = { nav.popBackStack() })

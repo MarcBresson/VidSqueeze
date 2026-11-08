@@ -17,7 +17,7 @@ object BuiltInPresets {
 
     val share = Preset(
         id = SHARE_ID,
-        name = "Share (WhatsApp-friendly)",
+        name = "Share",
         builtIn = true,
         params = FfmpegParams(
             videoCodec = VideoCodec.H264,

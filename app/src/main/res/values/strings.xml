@@ -199,9 +199,11 @@
     <string name="presets_export_title">Squeeze presets</string>
     <string name="presets_built_in">Built in</string>
     <string name="presets_yours">Your presets</string>
-    <string name="presets_none">You have no presets of your own yet. Duplicate a built-in one or save from the compression sheet.</string>
+    <string name="presets_none">You have no presets of your own yet. Create one, duplicate a built-in one or save from the compression sheet.</string>
     <string name="presets_back">Back</string>
     <string name="presets_edit_title">Edit preset</string>
+    <string name="presets_new_title">New preset</string>
+    <string name="presets_create">Create preset</string>
     <string name="nav_presets">Presets</string>
     <string name="nav_history">History</string>
     <string name="history_title">History</string>
