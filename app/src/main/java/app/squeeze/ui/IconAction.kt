@@ -1,33 +1,34 @@
 package app.squeeze.ui
 
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
+import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
 /**
- * A compact action button that shows only its icon. Tapping runs [onClick]; a long-press (or a
- * hover) reveals [label] under the icon, as does [showLabel] — true while the host card is
- * expanded. The label hides again after any tap.
+ * A compact action button that shows only its icon. Hovering reveals [label] as a tooltip;
+ * on touch, where there is no hover, a tap shows the label as a toast while running [onClick].
  */
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IconAction(
     icon: ImageVector,
@@ -35,32 +36,33 @@ fun IconAction(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     tint: Color = MaterialTheme.colorScheme.primary,
-    showLabel: Boolean = false,
 ) {
-    var revealed by remember { mutableStateOf(false) }
-    val visible = showLabel || revealed
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+    val context = LocalContext.current
+    val interactionSource = remember { MutableInteractionSource() }
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = {
+            PlainTooltip {
+                Text(label)
+            }
+        },
+        state = rememberTooltipState(),
+        modifier = modifier,
+    ) {
         Box(
             Modifier
                 .size(40.dp)
-                .combinedClickable(
-                    interactionSource = remember { MutableInteractionSource() },
+                .clickable(
+                    interactionSource = interactionSource,
                     indication = ripple(),
-                    onClick = { revealed = false; onClick() },
-                    onLongClick = { revealed = !revealed },
+                    onClick = {
+                        Toast.makeText(context, label, Toast.LENGTH_SHORT).show()
+                        onClick()
+                    },
                 ),
             contentAlignment = Alignment.Center,
         ) {
             Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(24.dp))
-        }
-        if (visible) {
-            Text(
-                label,
-                style = MaterialTheme.typography.labelSmall,
-                color = tint,
-                maxLines = 1,
-                modifier = Modifier.padding(bottom = 4.dp),
-            )
         }
     }
 }

@@ -29,11 +29,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Compare
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.FilterAlt
-import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material.icons.rounded.PublishedWithChanges
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -287,7 +287,6 @@ private fun BatchHeader(entry: HistoryEntry, batchActions: BatchResultActions) {
     if (entry.hasPendingResults) {
         var confirmDiscard by rememberSaveable(entry.batch.id) { mutableStateOf(false) }
         ResultActionsRow(
-            expanded = false,
             reshareLabel = stringResource(R.string.ready_reshare),
             replaceLabel = stringResource(R.string.ready_replace),
             saveLabel = stringResource(R.string.ready_save),
@@ -349,7 +348,7 @@ private fun ItemBlock(
                 OutcomePill(item)
                 if (canCompare(item)) {
                     IconButton(onClick = { onCompare(item.id) }, Modifier.padding(start = 2.dp)) {
-                        Icon(Icons.Default.Compare, contentDescription = stringResource(R.string.compare_open))
+                        Icon(Icons.Default.Compare, contentDescription = stringResource(R.string.compare_open), tint = MaterialTheme.colorScheme.primary)
                     }
                 }
                 result?.let { PlayButton(it, Modifier.padding(start = 2.dp)) }
@@ -372,7 +371,6 @@ private fun ItemBlock(
             if (isPending && (alwaysActions || open)) {
                 var confirmDiscard by rememberSaveable(item.id) { mutableStateOf(false) }
                 ResultActionsRow(
-                    expanded = open,
                     reshareLabel = stringResource(R.string.ready_reshare),
                     replaceLabel = stringResource(R.string.history_item_replace),
                     saveLabel = stringResource(R.string.history_item_save_copy),
@@ -396,14 +394,16 @@ private fun ItemBlock(
                 item.error?.let { Text(it.lineSequence().first(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
                 finalizeLabel(item)?.let { Text(stringResource(it), style = MaterialTheme.typography.bodySmall) }
                 // Unknown-yet items (missing[id] == null) show nothing until the on-expand check lands.
-                if (canPlayOriginal(item) && missing[item.id] == false) {
-                    TextButton(onClick = { context.playVideo(sourceVideo(item)) }, contentPadding = PaddingValues(0.dp)) {
-                        Text(stringResource(R.string.history_play_original))
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    if (canPlayOriginal(item) && missing[item.id] == false) {
+                        TextButton(onClick = { context.playVideo(sourceVideo(item)) }, contentPadding = PaddingValues(0.dp)) {
+                            Text(stringResource(R.string.history_play_original))
+                        }
                     }
-                }
-                if (hasLog(item.id)) {
-                    TextButton(onClick = { onShowLogs(item.id) }, contentPadding = PaddingValues(0.dp)) {
-                        Text(stringResource(R.string.history_show_logs))
+                    if (hasLog(item.id)) {
+                        TextButton(onClick = { onShowLogs(item.id) }, contentPadding = PaddingValues(0.dp)) {
+                            Text(stringResource(R.string.history_show_logs))
+                        }
                     }
                 }
             }
@@ -411,11 +411,10 @@ private fun ItemBlock(
     }
 }
 
-/** The four result actions. Icons only unless [expanded], then icon + text. */
+/** The four result actions, icon-only: the label rides the hover tooltip / tap toast. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ResultActionsRow(
-    expanded: Boolean,
     reshareLabel: String,
     replaceLabel: String,
     saveLabel: String,
@@ -426,10 +425,10 @@ private fun ResultActionsRow(
     onDiscard: () -> Unit,
 ) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        IconAction(Icons.Outlined.Share, reshareLabel, onReshare, showLabel = expanded)
-        IconAction(Icons.Outlined.SwapHoriz, replaceLabel, onReplace, showLabel = expanded, tint = MaterialTheme.colorScheme.primary)
-        IconAction(Icons.Outlined.FileDownload, saveLabel, onSave, showLabel = expanded)
-        IconAction(Icons.Outlined.Delete, discardLabel, onDiscard, showLabel = expanded, tint = MaterialTheme.colorScheme.error)
+        IconAction(Icons.Rounded.PublishedWithChanges, replaceLabel, onReplace, tint = MaterialTheme.colorScheme.primary)
+        IconAction(Icons.Outlined.ContentCopy, saveLabel, onSave)
+        IconAction(Icons.Outlined.Share, reshareLabel, onReshare)
+        IconAction(Icons.Outlined.Delete, discardLabel, onDiscard, tint = MaterialTheme.colorScheme.error)
     }
 }
 
