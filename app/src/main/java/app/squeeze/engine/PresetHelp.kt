@@ -92,7 +92,9 @@ object PresetHelp {
     val all: List<HelpEntry>
         get() = videoCodec.values + rateMode.values + listOf(
             encoder, resolution, fps, audioCodec, audioBitrate, container, customArgs,
-        )
+            photoFormat, photoResolution, jpegChroma, pngDepth, webpLossless, jxlEffort, jxlModular,
+            nameTemplate, keepExif, keepLocation,
+        ) + photoQuality(ImageFormat.entries.first()) + exportMode(ExportMode.entries.first())
 
     val encoder = HelpEntry(
         "Encoder speed",
@@ -156,5 +158,142 @@ object PresetHelp {
         "Custom arguments",
         "Raw commands appended for power users.",
         "Leave empty — anything here overrides the safe defaults above.",
+    )
+
+    // -----------------------------------------------------------------------------------------
+    // Photo parameters
+    // -----------------------------------------------------------------------------------------
+
+    fun photoQuality(format: ImageFormat): HelpEntry = when (format) {
+        ImageFormat.JPEG -> jpegQuality
+        ImageFormat.WEBP -> HelpEntry(
+            "WebP quality",
+            "Lower number = smaller file, worse looking. WebP is about 25-30% smaller than JPEG at the " +
+                "same quality.",
+            "85 is a good everyday pick for camera photos; below ~75 artefacts appear around sharp edges. " +
+                "Turn on lossless instead for screenshots and graphics.",
+        )
+        ImageFormat.AVIF -> HelpEntry(
+            "AVIF quality (CRF)",
+            "Opposite scale to quality: lower = better quality and a bigger file.",
+            "30 is a good default; 40+ starts visibly smearing fine detail. AVIF is about 50% smaller " +
+                "than JPEG at the same look — slow to compress but worth it for archives.",
+        )
+        ImageFormat.PNG -> HelpEntry(
+            "PNG (lossless)",
+            "PNG always keeps every pixel exactly — the knobs only affect file size and save time.",
+            "Great for screenshots and graphics, huge for camera photos — pick JPEG/WebP/AVIF for those.",
+        )
+        ImageFormat.JPEG_XL -> HelpEntry(
+            "JPEG XL quality",
+            "100 = mathematically lossless; 90 = visually lossless (libjxl's own default).",
+            "90 for archives that should look identical to the original; below 80 treat as lossy. " +
+                "JPEG XL can also losslessly re-shrink existing JPEGs, but app support is limited today.",
+        )
+    }
+
+    private val jpegQuality = HelpEntry(
+        "JPEG quality",
+        "Lower number = smaller file, worse looking.",
+        "85 = visually indistinguishable from the original for camera photos; below ~75 artefacts appear " +
+            "around sharp edges; above 95 pays size for nothing.",
+    )
+
+    val photoFormat = HelpEntry(
+        "Photo format",
+        "The file type the compressed photo is saved as.",
+        "JPEG is universal but the largest at a given quality — right choice for sharing/printing. " +
+            "WebP is about 25-30% smaller than JPEG, supported everywhere modern (Android, iOS 14+, all " +
+            "browsers). AVIF is about 50% smaller than JPEG at the same look; compression is slow but " +
+            "worth it for archives. PNG is lossless but huge for camera photos — meant for screenshots " +
+            "and graphics. JPEG XL matches AVIF's savings, can also losslessly re-shrink existing JPEGs; " +
+            "limited app support today.",
+    )
+
+    val photoResolution = HelpEntry(
+        "Photo resolution",
+        "Caps the photo's short side, never upscaling and never stretching.",
+        "For photos you print, keep full size; for photos you only view on a phone, 1440-2160 on the " +
+            "short side is plenty and saves most of the space.",
+    )
+
+    val jpegChroma = HelpEntry(
+        "JPEG 4:4:4 chroma",
+        "Keeps full colour detail instead of the default 4:2:0 subsampling, which halves colour resolution.",
+        "On for screenshots, text and sharp graphics; off (default) for camera photos, where you can't see the difference.",
+    )
+
+    val pngDepth = HelpEntry(
+        "PNG bit depth",
+        "How many shades each colour channel keeps.",
+        "16-bit only for professional editing pipelines; 8 for everything else.",
+    )
+
+    val webpLossless = HelpEntry(
+        "WebP lossless",
+        "Exact pixels preserved — quality is ignored.",
+        "Big for photos, fine for screenshots/graphics.",
+    )
+
+    val jxlEffort = HelpEntry(
+        "JPEG XL effort",
+        "1-9, like the encoder-speed knob: higher = smaller file, slower.",
+        "7 is the libjxl default — leave it unless an archive job can run overnight, then try 8-9.",
+    )
+
+    val jxlModular = HelpEntry(
+        "JPEG XL modular",
+        "Chooses the encoder's internal mode.",
+        "On = best for screenshots, flat graphics and true lossless; off (VarDCT) = best for camera photos.",
+    )
+
+    // -----------------------------------------------------------------------------------------
+    // Export parameters
+    // -----------------------------------------------------------------------------------------
+
+    fun exportMode(mode: ExportMode): HelpEntry = when (mode) {
+        ExportMode.ASK_WHEN_DONE -> HelpEntry(
+            "Ask when done",
+            "The app asks for each batch what to do with the files.",
+            "The safe default.",
+        )
+        ExportMode.SAVE_COPIES -> HelpEntry(
+            "Save copies",
+            "Originals are untouched; compressed versions are saved alongside.",
+            "Needs free space for both.",
+        )
+        ExportMode.REPLACE_ORIGINALS -> HelpEntry(
+            "Replace originals",
+            "The original file is deleted after compressing — make sure you have a backup.",
+            "Saves the most space, but the original is deleted — only use it with a backup you trust (cloud, NAS, second drive).",
+        )
+    }
+
+    val nameTemplate = HelpEntry(
+        "Name template",
+        "How compressed files are named.",
+        "{original_file_name} and {output_format} are filled in automatically; tap the chips to insert them.",
+    )
+
+    val keepExif = HelpEntry(
+        "Keep Exif",
+        "The photo's metadata: camera model, date, settings.",
+        "Harmless and useful for organizing — keep unless you're publishing publicly.",
+    )
+
+    val keepLocation = HelpEntry(
+        "Keep location",
+        "GPS coordinates embedded in photos/videos.",
+        "Strip this (off) before posting anything publicly — it reveals where you live. Keeping it is " +
+            "fine for a private archive.",
+    )
+
+    /** Photo and export knobs in form order. */
+    val photoAndExportKeys: List<PresetHelpKey> = listOf(
+        PresetHelpKey.PHOTO_FORMAT, PresetHelpKey.PHOTO_QUALITY, PresetHelpKey.PHOTO_RESOLUTION,
+        PresetHelpKey.JPEG_CHROMA, PresetHelpKey.PNG_DEPTH, PresetHelpKey.WEBP_LOSSLESS,
+        PresetHelpKey.JXL_EFFORT, PresetHelpKey.JXL_MODULAR,
+        PresetHelpKey.EXPORT_MODE, PresetHelpKey.NAME_TEMPLATE, PresetHelpKey.KEEP_EXIF,
+        PresetHelpKey.KEEP_LOCATION,
     )
 }

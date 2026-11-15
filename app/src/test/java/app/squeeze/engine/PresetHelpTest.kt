@@ -29,6 +29,30 @@ class PresetHelpTest {
     }
 
     @Test
+    fun `every image format has a quality-knob help`() {
+        for (format in ImageFormat.entries) {
+            assertTrue("missing quality help for $format", PresetHelp.photoQuality(format).whichToPick.isNotBlank())
+        }
+    }
+
+    @Test
+    fun `photo and export knobs are all covered`() {
+        val expected = listOf(
+            PresetHelpKey.PHOTO_FORMAT, PresetHelpKey.PHOTO_QUALITY, PresetHelpKey.PHOTO_RESOLUTION,
+            PresetHelpKey.JPEG_CHROMA, PresetHelpKey.PNG_DEPTH, PresetHelpKey.WEBP_LOSSLESS,
+            PresetHelpKey.JXL_EFFORT, PresetHelpKey.JXL_MODULAR,
+            PresetHelpKey.EXPORT_MODE, PresetHelpKey.NAME_TEMPLATE, PresetHelpKey.KEEP_EXIF,
+            PresetHelpKey.KEEP_LOCATION,
+        )
+        assertEquals(expected, PresetHelp.photoAndExportKeys)
+    }
+
+    @Test
+    fun `replace-originals help warns the original is deleted`() {
+        assertTrue(PresetHelp.exportMode(ExportMode.REPLACE_ORIGINALS).whichToPick.contains("deleted", ignoreCase = true))
+    }
+
+    @Test
     fun `catalog covers exactly the video knobs the form shows`() {
         val expected = listOf(
             PresetHelpKey.VIDEO_CODEC, PresetHelpKey.ENCODER, PresetHelpKey.RATE_MODE,
