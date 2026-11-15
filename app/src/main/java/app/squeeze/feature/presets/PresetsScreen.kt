@@ -49,6 +49,7 @@ import app.squeeze.engine.Preset
 import app.squeeze.engine.RateControl
 import app.squeeze.engine.VideoCodec
 import app.squeeze.feature.compress.MessageToast
+import app.squeeze.presets.BuiltInDescriptions
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -122,6 +123,13 @@ private fun PresetRow(preset: Preset, isDefault: Boolean, onEdit: (String) -> Un
         headlineContent = { Text(preset.name) },
         supportingContent = {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                if (preset.builtIn) {
+                    Text(
+                        BuiltInDescriptions.forId(preset.id),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 videoSummary(preset)?.let {
                     ParamsLine(icon = Icons.Filled.Movie, tint = MaterialTheme.colorScheme.primary, text = it)
                 }
