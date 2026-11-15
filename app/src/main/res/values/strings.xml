@@ -375,10 +375,8 @@
     <string name="perm_allow">Allow</string>
     <string name="perm_app_settings">App settings</string>
     <string name="perm_open_settings">Open system settings</string>
-    <string name="perm_videos">Your videos</string>
-    <string name="perm_videos_why">Lets Squeeze find old and heavy videos, compress them where they are and replace the originals. Sharing and picking videos works without it.</string>
-    <string name="perm_images">Your photos</string>
-    <string name="perm_images_why">Lets Squeeze read photos from your library and save compressed copies next to them. Sharing and the photo picker work without it.</string>
+    <string name="perm_media">Your photos &amp; videos</string>
+    <string name="perm_media_why">Lets Squeeze find old and heavy videos, compress them where they are and replace the originals, and read photos to save compressed copies next to them. Sharing and the pickers work without it.</string>
     <string name="perm_location">Location in videos</string>
     <string name="perm_location_why">Lets "keep location" preserve the place a video was filmed. Without it the location is dropped.</string>
     <string name="perm_notifications">Notifications</string>

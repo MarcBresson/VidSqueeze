@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -35,6 +36,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.squeeze.R
+
+/** Photos and videos: one system dialog, so one card. */
+private val mediaPermissions = setOf(AppPermission.IMAGES, AppPermission.VIDEOS)
 
 /** The permissions page reachable from Settings. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,11 +70,11 @@ fun OnboardingScreen(onDone: () -> Unit, vm: PermissionsViewModel = hiltViewMode
         modifier = Modifier.fillMaxSize(),
         topBar = { TopAppBar(title = { Text(stringResource(R.string.onboard_title)) }) },
         bottomBar = {
-            Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp)) {
                 Button(onClick = { vm.finishOnboarding(onDone) }, modifier = Modifier.fillMaxWidth()) {
                     Text(
                         stringResource(
-                            if (state[AppPermission.VIDEOS] == true) R.string.onboard_continue else R.string.onboard_skip,
+                            if (state[AppPermission.VIDEOS] == true || state[AppPermission.IMAGES] == true) R.string.onboard_continue else R.string.onboard_skip,
                         ),
                     )
                 }
@@ -87,11 +91,37 @@ private fun PermissionList(vm: PermissionsViewModel, modifier: Modifier = Modifi
     val context = LocalContext.current
     val state by vm.state.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refresh() }
-    val request = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { vm.refresh() }
+    val request = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { vm.refresh() }
 
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (intro != null) item { Text(intro, style = MaterialTheme.typography.bodyMedium) }
-        items(AppPermission.entries, key = { it.name }) { permission ->
+        // Android treats photos and videos as one "photos and videos" dialog, so they share one card.
+        item(key = "media") {
+            val granted = mediaPermissions.all { state[it] == true }
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(stringResource(R.string.perm_media), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.perm_media_why), style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        stringResource(if (granted) R.string.perm_allowed else R.string.perm_recommended),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (granted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                    )
+                    if (!granted) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = { request.launch(mediaPermissions.mapNotNull { it.runtime }.toTypedArray()) }) {
+                                Text(stringResource(R.string.perm_allow))
+                            }
+                            // After "don't ask again" the dialog never shows; the app's settings page is the only way.
+                            TextButton(onClick = { context.startActivity(AppPermissions.appDetails(context)) }) {
+                                Text(stringResource(R.string.perm_app_settings))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        items(AppPermission.entries - mediaPermissions, key = { it.name }) { permission ->
             val granted = state[permission] == true
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -112,7 +142,7 @@ private fun PermissionList(vm: PermissionsViewModel, modifier: Modifier = Modifi
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             val runtime = permission.runtime
                             if (runtime != null) {
-                                Button(onClick = { request.launch(runtime) }) { Text(stringResource(R.string.perm_allow)) }
+                                Button(onClick = { request.launch(arrayOf(runtime)) }) { Text(stringResource(R.string.perm_allow)) }
                                 // After "don't ask again" the dialog never shows; the app's settings page is the only way.
                                 TextButton(onClick = { context.startActivity(AppPermissions.appDetails(context)) }) {
                                     Text(stringResource(R.string.perm_app_settings))
@@ -136,8 +166,7 @@ private fun PermissionList(vm: PermissionsViewModel, modifier: Modifier = Modifi
 }
 
 private fun AppPermission.title() = when (this) {
-    AppPermission.VIDEOS -> R.string.perm_videos
-    AppPermission.IMAGES -> R.string.perm_images
+    AppPermission.VIDEOS, AppPermission.IMAGES -> R.string.perm_media
     AppPermission.LOCATION -> R.string.perm_location
     AppPermission.NOTIFICATIONS -> R.string.perm_notifications
     AppPermission.MANAGE_MEDIA -> R.string.perm_manage_media
@@ -145,8 +174,7 @@ private fun AppPermission.title() = when (this) {
 }
 
 private fun AppPermission.reason() = when (this) {
-    AppPermission.VIDEOS -> R.string.perm_videos_why
-    AppPermission.IMAGES -> R.string.perm_images_why
+    AppPermission.VIDEOS, AppPermission.IMAGES -> R.string.perm_media_why
     AppPermission.LOCATION -> R.string.perm_location_why
     AppPermission.NOTIFICATIONS -> R.string.perm_notifications_why
     AppPermission.MANAGE_MEDIA -> R.string.perm_manage_media_why
