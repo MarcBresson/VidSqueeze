@@ -2,6 +2,7 @@ package app.squeeze.feature.presets
 
 import android.content.Context
 import android.net.Uri
+import android.widget.Toast
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -46,8 +47,14 @@ class PresetsViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PresetsUi())
 
     fun setDefault(id: String) {
-        viewModelScope.launch { settings.setDefaultPreset(id) }
+        viewModelScope.launch {
+            settings.setDefaultPreset(id)
+            toastDefaultSet(repository.all().firstOrNull { it.id == id }?.name ?: id)
+        }
     }
+
+    private fun toastDefaultSet(name: String) =
+        Toast.makeText(context, context.getString(app.squeeze.R.string.msg_default_set, name), Toast.LENGTH_SHORT).show()
 
     fun messageShown() = message.update { null }
 

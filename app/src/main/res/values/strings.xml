@@ -194,6 +194,7 @@
     <string name="msg_renamed">Preset renamed</string>
     <string name="msg_deleted">Preset deleted</string>
     <string name="msg_imported">Imported %1$d presets</string>
+    <string name="msg_default_set">%1$s is now the default preset</string>
 
     <string name="presets_title">Presets</string>
     <string name="presets_import">Import</string>

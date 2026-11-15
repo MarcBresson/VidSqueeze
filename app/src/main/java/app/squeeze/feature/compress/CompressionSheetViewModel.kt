@@ -1,9 +1,12 @@
 package app.squeeze.feature.compress
 
+import android.content.Context
 import android.net.Uri
 import android.util.Log
+import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.squeeze.R
 import app.squeeze.data.BatchSource
 import app.squeeze.data.PresetRepository
 import app.squeeze.data.SettingsRepository
@@ -23,6 +26,7 @@ import app.squeeze.engine.SizeEstimator
 import app.squeeze.engine.SourceInfo
 import app.squeeze.work.QueueManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -79,6 +83,7 @@ internal const val NEW_PRESET_ID = "new"
  */
 @HiltViewModel
 class CompressionSheetViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val presets: PresetRepository,
     private val settings: SettingsRepository,
     private val queue: QueueManager,
@@ -249,7 +254,14 @@ class CompressionSheetViewModel @Inject constructor(
     }
 
     fun setDefault(id: String = _ui.value.base.id) {
-        viewModelScope.launch { settings.setDefaultPreset(id) }
+        viewModelScope.launch {
+            settings.setDefaultPreset(id)
+            Toast.makeText(
+                context,
+                context.getString(R.string.msg_default_set, _ui.value.presets.firstOrNull { it.id == id }?.name ?: id),
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
     }
 
     fun messageShown() = _ui.update { it.copy(message = null) }

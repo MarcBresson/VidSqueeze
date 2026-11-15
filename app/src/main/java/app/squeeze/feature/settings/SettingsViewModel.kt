@@ -1,8 +1,10 @@
 package app.squeeze.feature.settings
 
 import android.content.Context
+import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.squeeze.R
 import app.squeeze.data.PresetRepository
 import app.squeeze.data.SettingsRepository
 import app.squeeze.data.ThemeMode
@@ -77,7 +79,10 @@ class SettingsViewModel @Inject constructor(
 
     fun setReplaceKeepsOriginalName(on: Boolean) = viewModelScope.launch { settings.setReplaceKeepsOriginalName(on) }
 
-    fun setDefaultPreset(id: String) = viewModelScope.launch { settings.setDefaultPreset(id) }
+    fun setDefaultPreset(id: String) = viewModelScope.launch {
+        settings.setDefaultPreset(id)
+        Toast.makeText(context, context.getString(R.string.msg_default_set, ui.value.presets.firstOrNull { it.id == id }?.name ?: id), Toast.LENGTH_SHORT).show()
+    }
 
     fun setSizeBuckets(values: List<Long>) = viewModelScope.launch { settings.setSizeFilterBucketsMb(values) }
 
