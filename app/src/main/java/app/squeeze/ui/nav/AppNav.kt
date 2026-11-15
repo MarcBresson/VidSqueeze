@@ -144,6 +144,7 @@ private fun NavGraphBuilder.appGraph(nav: NavHostController, focus: HistoryFocus
             onOpenPermissions = { nav.navigate(Routes.PERMISSIONS) },
             onOpenCapabilities = { nav.navigate(Routes.CAPABILITIES) },
             onOpenAbout = { nav.navigate(Routes.ABOUT) },
+            onOpenAuto = { nav.navigate(Routes.AUTO) },
         )
     }
     composable(Routes.PERMISSIONS) { PermissionsScreen(onBack = { nav.popBackStack() }) }
@@ -161,7 +162,7 @@ private fun NavGraphBuilder.appGraph(nav: NavHostController, focus: HistoryFocus
     composable(Routes.LICENSE_TEXT, arguments = listOf(navArgument("name") { type = NavType.StringType })) { entry ->
         LicenseTextScreen(rawName = requireNotNull(entry.arguments?.getString("name")), onBack = { nav.popBackStack() })
     }
-    composable(Routes.AUTO) { AutoScreen() }
+    composable(Routes.AUTO) { AutoScreen(onBack = { nav.popBackStack() }) }
     composable(Routes.HISTORY) {
         HistoryScreen(
             onCompare = { nav.navigate(Routes.compare(it)) },

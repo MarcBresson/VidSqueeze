@@ -1,13 +1,10 @@
 package app.squeeze.feature.auto
 
-import android.Manifest
 import android.app.TimePickerDialog
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.text.format.Formatter
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +20,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
@@ -30,6 +28,8 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -74,21 +74,21 @@ import java.time.format.TextStyle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AutoScreen(vm: AutoViewModel = hiltViewModel()) {
+fun AutoScreen(onBack: () -> Unit, vm: AutoViewModel = hiltViewModel()) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val config = ui.config
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refreshAccess() }
-
-    val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { vm.refreshAccess() }
-    fun askPermissions() = permissions.launch(
-        arrayOf(Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.ACCESS_MEDIA_LOCATION, Manifest.permission.POST_NOTIFICATIONS),
-    )
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.auto_title)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.presets_back))
+                    }
+                },
             )
         },
     ) { padding ->
@@ -96,21 +96,6 @@ fun AutoScreen(vm: AutoViewModel = hiltViewModel()) {
             Modifier.padding(padding).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item {
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SwitchRow(stringResource(R.string.auto_enable), config.enabled) { on ->
-                            vm.update { it.copy(enabled = on) }
-                            if (on && !ui.hasMediaAccess) askPermissions()
-                        }
-                        Text(stringResource(R.string.auto_intro), style = MaterialTheme.typography.bodySmall)
-                        if (!ui.hasMediaAccess) {
-                            Text(stringResource(R.string.auto_needs_access), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                            Button(onClick = ::askPermissions) { Text(stringResource(R.string.auto_grant_access)) }
-                        }
-                    }
-                }
-            }
             item { ScheduleSection(config, vm) }
             item { ConditionsSection(config, vm) }
             item { RulesSection(config, ui.presets, vm) }

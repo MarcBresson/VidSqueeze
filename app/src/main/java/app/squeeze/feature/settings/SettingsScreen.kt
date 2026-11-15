@@ -1,13 +1,17 @@
 package app.squeeze.feature.settings
 
+import android.Manifest
 import android.content.Intent
 import android.provider.Settings
 import android.text.format.Formatter
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -17,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -47,10 +53,14 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.squeeze.R
 import app.squeeze.data.Retention
 import app.squeeze.data.ThemeMode
+import app.squeeze.feature.auto.AutoUi
+import app.squeeze.feature.auto.AutoViewModel
 import app.squeeze.feature.auto.SwitchRow
 import app.squeeze.work.NotificationHelper
 
@@ -60,9 +70,17 @@ fun SettingsScreen(
     onOpenPermissions: () -> Unit,
     onOpenCapabilities: () -> Unit,
     onOpenAbout: () -> Unit,
+    onOpenAuto: () -> Unit,
     vm: SettingsViewModel = hiltViewModel(),
+    autoVm: AutoViewModel = hiltViewModel(),
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val autoUi by autoVm.ui.collectAsStateWithLifecycle()
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { autoVm.refreshAccess() }
+    val autoPermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { autoVm.refreshAccess() }
+    fun askAutoPermissions() = autoPermissions.launch(
+        arrayOf(Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.ACCESS_MEDIA_LOCATION, Manifest.permission.POST_NOTIFICATIONS),
+    )
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
@@ -75,6 +93,7 @@ fun SettingsScreen(
             Modifier.padding(padding).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            item { AutoSection(autoUi, autoVm, ::askAutoPermissions, onOpenAuto) }
             item { AppearanceSection(ui, vm) }
             item { DefaultsSection(ui, vm) }
             item { FilterBucketsSection(ui, vm) }
@@ -88,6 +107,41 @@ fun SettingsScreen(
                 }
             }
             item { Column(Modifier.padding(bottom = 24.dp)) {} }
+        }
+    }
+}
+
+@Composable
+private fun AutoSection(
+    autoUi: AutoUi,
+    autoVm: AutoViewModel,
+    askPermissions: () -> Unit,
+    onOpenAuto: () -> Unit,
+) {
+    val config = autoUi.config
+    SectionCard(stringResource(R.string.auto_title)) {
+        SwitchRow(stringResource(R.string.auto_enable), config.enabled) { on ->
+            autoVm.update { it.copy(enabled = on) }
+            if (on && !autoUi.hasMediaAccess) askPermissions()
+        }
+        Text(stringResource(R.string.auto_intro), style = MaterialTheme.typography.bodySmall)
+        if (!autoUi.hasMediaAccess) {
+            Text(stringResource(R.string.auto_needs_access), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            Button(onClick = askPermissions) { Text(stringResource(R.string.auto_grant_access)) }
+        }
+        val enabled = config.enabled
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .alpha(if (enabled) 1f else 0.4f)
+                .clickable(enabled = enabled, role = Role.Button, onClick = onOpenAuto)
+                .padding(vertical = 6.dp),
+        ) {
+            Text(stringResource(R.string.settings_auto_parameters), style = MaterialTheme.typography.bodyLarge)
+            Text(
+                stringResource(if (enabled) R.string.settings_auto_parameters_hint else R.string.settings_auto_disabled_hint),
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 }
