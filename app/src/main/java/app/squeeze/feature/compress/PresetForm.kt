@@ -47,6 +47,7 @@ import app.squeeze.engine.EncoderKind
 import app.squeeze.engine.EncoderPreset
 import app.squeeze.engine.ExportMode
 import app.squeeze.engine.FfmpegParams
+import app.squeeze.engine.HelpEntry
 import app.squeeze.engine.HardwareEncoders
 import app.squeeze.engine.ImageFormat
 import app.squeeze.engine.ImageParams
@@ -55,6 +56,7 @@ import app.squeeze.engine.MediaKind
 import app.squeeze.engine.ParamOptions
 import app.squeeze.engine.ParamOptions.label
 import app.squeeze.engine.PixelFormat
+import app.squeeze.engine.PresetHelp
 import app.squeeze.engine.QualityHint
 import app.squeeze.engine.RateControl
 import app.squeeze.engine.RateMode
@@ -151,6 +153,15 @@ private fun SectionTitle(text: String) =
 @Composable
 private fun Label(text: String) = Text(text, style = MaterialTheme.typography.labelLarge)
 
+/** A setting label with an inline "?" that opens the parameter's plain-language help. */
+@Composable
+private fun LabelHelp(text: String, entry: HelpEntry) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+        Label(text)
+        HelpIcon(entry)
+    }
+}
+
 @Composable
 private fun Note(text: String, error: Boolean = false) = Text(
     text,
@@ -178,7 +189,7 @@ private fun EncodingSection(p: FfmpegParams, hardware: HardwareEncoders, vm: Com
     SectionTitle(stringResource(R.string.sec_encoding))
 
     // Video codec
-    Label(stringResource(R.string.enc_video))
+    LabelHelp(stringResource(R.string.enc_video), PresetHelp.videoCodec.getValue(p.videoCodec))
     val hw = ParamOptions.isHardware(p)
     Chips {
         VideoCodec.entries.forEach { c ->
@@ -203,7 +214,7 @@ private fun EncodingSection(p: FfmpegParams, hardware: HardwareEncoders, vm: Com
         RateSection(p, hardware, vm)
         // Hardware encoders have no effort setting that ffmpeg can pass on.
         if (!hw) {
-            Label(stringResource(R.string.enc_speed, p.encoderPreset.ffName))
+            LabelHelp(stringResource(R.string.enc_speed, p.encoderPreset.ffName), PresetHelp.encoder)
             Slider(
                 value = p.encoderPreset.ordinal.toFloat(),
                 onValueChange = { v -> vm.editVideoParams { it.copy(encoderPreset = EncoderPreset.entries[v.toInt()]) } },
@@ -223,8 +234,8 @@ private fun EncodingSection(p: FfmpegParams, hardware: HardwareEncoders, vm: Com
 
 @Composable
 private fun RateSection(p: FfmpegParams, hardware: HardwareEncoders, vm: CompressionSheetViewModel) {
-    Label(stringResource(R.string.enc_rate))
     val mode = ParamOptions.rateMode(p.rateControl)
+    LabelHelp(stringResource(R.string.enc_rate), PresetHelp.rateMode.getValue(mode))
     // Software encoders only have CRF, so the mode chips matter only for hardware.
     if (ParamOptions.isHardware(p)) {
         Chips {
@@ -286,7 +297,7 @@ private fun RateSection(p: FfmpegParams, hardware: HardwareEncoders, vm: Compres
 
 @Composable
 private fun FrameRateAndResolution(p: FfmpegParams, vm: CompressionSheetViewModel) {
-    Label(stringResource(R.string.enc_fps))
+    LabelHelp(stringResource(R.string.enc_fps), PresetHelp.fps)
     Chips {
         Choice(p.fpsMax == null, stringResource(R.string.enc_fps_keep)) { vm.editVideoParams { it.copy(fpsMax = null) } }
         ParamOptions.FPS_CHOICES.forEach { f ->
@@ -295,7 +306,7 @@ private fun FrameRateAndResolution(p: FfmpegParams, vm: CompressionSheetViewMode
     }
     Note(stringResource(R.string.enc_fps_note))
 
-    Label(stringResource(R.string.enc_resolution))
+    LabelHelp(stringResource(R.string.enc_resolution), PresetHelp.resolution)
     val custom = p.maxShortSide != null && p.maxShortSide !in ParamOptions.RESOLUTIONS
     var customOpen by rememberSaveable { mutableStateOf(custom) }
     Chips {
@@ -323,7 +334,7 @@ private fun FrameRateAndResolution(p: FfmpegParams, vm: CompressionSheetViewMode
 
 @Composable
 private fun AudioSection(p: FfmpegParams, vm: CompressionSheetViewModel) {
-    Label(stringResource(R.string.enc_audio))
+    LabelHelp(stringResource(R.string.enc_audio), PresetHelp.audioCodec)
     Chips {
         AudioCodec.entries.forEach { a ->
             val allowed = a == AudioCodec.COPY || p.container == Container.ORIGINAL ||
@@ -332,7 +343,10 @@ private fun AudioSection(p: FfmpegParams, vm: CompressionSheetViewModel) {
         }
     }
     if (p.audioCodec != AudioCodec.COPY) {
-        Text(stringResource(R.string.enc_audio_bitrate, p.audioBitrateK))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.enc_audio_bitrate, p.audioBitrateK), style = MaterialTheme.typography.labelLarge)
+            HelpIcon(PresetHelp.audioBitrate)
+        }
         Chips {
             ParamOptions.AUDIO_BITRATES.forEach { b ->
                 Choice(p.audioBitrateK == b, "$b") { vm.editVideoParams { it.copy(audioBitrateK = b) } }
@@ -343,7 +357,7 @@ private fun AudioSection(p: FfmpegParams, vm: CompressionSheetViewModel) {
 
 @Composable
 private fun ContainerSection(p: FfmpegParams, vm: CompressionSheetViewModel) {
-    Label(stringResource(R.string.enc_container))
+    LabelHelp(stringResource(R.string.enc_container), PresetHelp.container)
     val reasons = Container.entries.mapNotNull { ParamOptions.containerDisabledReason(it, p) }
     Chips {
         Container.entries.forEach { c ->
@@ -387,10 +401,10 @@ private fun AdvancedSection(p: FfmpegParams, vm: CompressionSheetViewModel) {
         }
     }
 
+    LabelHelp(stringResource(R.string.enc_custom_args), PresetHelp.customArgs)
     OutlinedTextField(
         value = p.customArgs,
         onValueChange = { v -> vm.editVideoParams { it.copy(customArgs = v) } },
-        label = { Text(stringResource(R.string.enc_custom_args)) },
         supportingText = { Text(stringResource(R.string.enc_custom_args_hint)) },
         modifier = Modifier.fillMaxWidth(),
     )
@@ -406,7 +420,7 @@ private fun AdvancedSection(p: FfmpegParams, vm: CompressionSheetViewModel) {
 @Composable
 private fun ImageEncodingSection(p: ImageParams, vm: CompressionSheetViewModel) {
     SectionTitle(stringResource(R.string.sec_image_encoding))
-    Label(stringResource(R.string.img_format))
+    LabelHelp(stringResource(R.string.img_format), PresetHelp.photoFormat)
     Chips {
         ImageFormat.entries.forEach { format ->
             Choice(
@@ -419,17 +433,18 @@ private fun ImageEncodingSection(p: ImageParams, vm: CompressionSheetViewModel) 
     }
     when (p.format) {
         ImageFormat.JPEG -> {
-            QualitySlider(p.quality) { q -> vm.editImageParams { it.copy(quality = q) } }
+            QualitySlider(PresetHelp.photoQuality(ImageFormat.JPEG), p.quality) { q -> vm.editImageParams { it.copy(quality = q) } }
             Chips {
                 Choice(
                     selected = p.jpegChroma444,
                     label = stringResource(R.string.img_jpeg_chroma),
                     onClick = { vm.editImageParams { it.copy(jpegChroma444 = !it.jpegChroma444) } },
                 )
+                HelpIcon(PresetHelp.jpegChroma)
             }
         }
         ImageFormat.PNG -> {
-            Label(stringResource(R.string.img_png_depth))
+            LabelHelp(stringResource(R.string.img_png_depth), PresetHelp.pngDepth)
             Chips {
                 Choice(selected = p.pngBitDepth == 8, label = stringResource(R.string.img_png_depth_8), onClick = { vm.editImageParams { it.copy(pngBitDepth = 8) } })
                 Choice(selected = p.pngBitDepth == 16, label = stringResource(R.string.img_png_depth_16), onClick = { vm.editImageParams { it.copy(pngBitDepth = 16) } })
@@ -440,17 +455,18 @@ private fun ImageEncodingSection(p: ImageParams, vm: CompressionSheetViewModel) 
             }
         }
         ImageFormat.WEBP -> {
-            QualitySlider(p.quality) { q -> vm.editImageParams { it.copy(quality = q) } }
+            QualitySlider(PresetHelp.photoQuality(ImageFormat.WEBP), p.quality) { q -> vm.editImageParams { it.copy(quality = q) } }
             Chips {
                 Choice(
                     selected = p.webpLossless,
                     label = stringResource(R.string.img_webp_lossless),
                     onClick = { vm.editImageParams { it.copy(webpLossless = !it.webpLossless) } },
                 )
+                HelpIcon(PresetHelp.webpLossless)
             }
         }
         ImageFormat.AVIF -> {
-            Label(stringResource(R.string.img_avif_crf))
+            LabelHelp(stringResource(R.string.img_avif_crf), PresetHelp.photoQuality(ImageFormat.AVIF))
             Slider(
                 value = p.avifCrf.toFloat(),
                 onValueChange = { v -> vm.editImageParams { it.copy(avifCrf = v.toInt()) } },
@@ -464,17 +480,18 @@ private fun ImageEncodingSection(p: ImageParams, vm: CompressionSheetViewModel) 
         }
         ImageFormat.JPEG_XL -> {
             val jxl = p.jxl
-            Label(stringResource(R.string.img_jxl_effort))
+            LabelHelp(stringResource(R.string.img_jxl_effort), PresetHelp.jxlEffort)
             NumberField(stringResource(R.string.img_jxl_effort), jxl.effort, 1..9) { v ->
                 vm.editImageParams { it.copy(jxl = it.jxl.copy(effort = v)) }
             }
-            QualitySlider(jxl.quality) { q -> vm.editImageParams { it.copy(jxl = it.jxl.copy(quality = q)) } }
+            QualitySlider(PresetHelp.photoQuality(ImageFormat.JPEG_XL), jxl.quality) { q -> vm.editImageParams { it.copy(jxl = it.jxl.copy(quality = q)) } }
             Chips {
                 Choice(
                     selected = jxl.modular,
                     label = stringResource(R.string.img_jxl_modular),
                     onClick = { vm.editImageParams { it.copy(jxl = it.jxl.copy(modular = !it.jxl.modular)) } },
                 )
+                HelpIcon(PresetHelp.jxlModular)
             }
             Label(stringResource(R.string.img_jxl_colorspace))
             Chips {
@@ -502,8 +519,11 @@ private fun ImageEncodingSection(p: ImageParams, vm: CompressionSheetViewModel) 
 }
 
 @Composable
-private fun QualitySlider(quality: Int, onValue: (Int) -> Unit) {
-    Label(stringResource(R.string.img_quality))
+private fun QualitySlider(help: HelpEntry, quality: Int, onValue: (Int) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Label(stringResource(R.string.img_quality))
+        HelpIcon(help)
+    }
     Text(stringResource(R.string.img_quality_value, quality), style = MaterialTheme.typography.labelLarge)
     Slider(
         value = quality.toFloat(),
@@ -515,13 +535,13 @@ private fun QualitySlider(quality: Int, onValue: (Int) -> Unit) {
 @Composable
 private fun ImageMaxSide(p: ImageParams, vm: CompressionSheetViewModel) {
     var text by rememberSaveable(p.maxShortSide) { mutableStateOf(p.maxShortSide?.toString().orEmpty()) }
+    LabelHelp(stringResource(R.string.img_max_side), PresetHelp.photoResolution)
     OutlinedTextField(
         value = text,
         onValueChange = { value ->
             text = value.filter { it.isDigit() }.take(5)
             vm.editImageParams { it.copy(maxShortSide = text.toIntOrNull()) }
         },
-        label = { Text(stringResource(R.string.img_max_side)) },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         modifier = Modifier.fillMaxWidth(),
     )
@@ -554,7 +574,7 @@ private fun ExportSection(ui: SheetUi, vm: CompressionSheetViewModel) {
     val e = ui.draft.export
     SectionTitle(stringResource(R.string.sec_export))
 
-    Label(stringResource(R.string.exp_mode))
+    LabelHelp(stringResource(R.string.exp_mode), PresetHelp.exportMode(e.mode))
     Chips {
         Choice(e.mode == ExportMode.ASK_WHEN_DONE, stringResource(R.string.exp_ask)) { vm.editExport { it.copy(mode = ExportMode.ASK_WHEN_DONE) } }
         Choice(e.mode == ExportMode.REPLACE_ORIGINALS, stringResource(R.string.exp_replace)) { vm.editExport { it.copy(mode = ExportMode.REPLACE_ORIGINALS) } }
@@ -563,10 +583,10 @@ private fun ExportSection(ui: SheetUi, vm: CompressionSheetViewModel) {
 
     // Replacing keeps the original name; the others need a name for the new file.
     if (e.mode != ExportMode.REPLACE_ORIGINALS) {
+        LabelHelp(stringResource(R.string.exp_name_template), PresetHelp.nameTemplate)
         OutlinedTextField(
             value = e.nameTemplate,
             onValueChange = { v -> vm.editExport { it.copy(nameTemplate = v) } },
-            label = { Text(stringResource(R.string.exp_name_template)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -586,6 +606,7 @@ private fun ExportSection(ui: SheetUi, vm: CompressionSheetViewModel) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Switch(checked = e.keepExif, onCheckedChange = { v -> vm.editExport { it.copy(keepExif = v) } })
         Text(stringResource(R.string.exp_keep_exif))
+        HelpIcon(PresetHelp.keepExif)
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Switch(
@@ -594,6 +615,7 @@ private fun ExportSection(ui: SheetUi, vm: CompressionSheetViewModel) {
             onCheckedChange = { v -> vm.editExport { it.copy(keepLocation = v) } },
         )
         Text(stringResource(R.string.exp_keep_location))
+        HelpIcon(PresetHelp.keepLocation)
     }
 }
 
