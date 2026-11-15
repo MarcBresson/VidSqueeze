@@ -81,10 +81,12 @@ class HomeViewModel @Inject constructor(
                 null
             } else {
                 val planned = autoRunner.plan(config)
-                val current = planned.sumOf { it.video.sizeBytes }
-                val estimated = planned.mapNotNull { it.estimatedBytes }
-                // A partial estimate would overstate the saving, so it only counts when complete.
-                val achievable = if (estimated.size == planned.size) estimated.sum() else null
+                // A few files (e.g. copied .MOV clips) have no MediaStore duration, so they cannot be
+                // estimated. The offer then covers the videos that can be estimated, like with like,
+                // instead of one un-estimable file erasing the whole banner.
+                val estimable = planned.mapNotNull { it.estimatedBytes?.let { bytes -> it.video.sizeBytes to bytes } }
+                val current = estimable.sumOf { it.first }
+                val achievable = estimable.takeIf { it.isNotEmpty() }?.sumOf { it.second }
                 AutoPromo(planned.size, current, achievable)
             }
         }
