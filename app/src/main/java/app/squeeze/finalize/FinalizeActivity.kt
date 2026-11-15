@@ -64,7 +64,7 @@ class FinalizeActivity : ComponentActivity() {
         batchId = intent.getLongExtra(EXTRA_BATCH, -1)
         itemId = intent.getLongExtra(EXTRA_ITEM, -1)
         val action = intent.getStringExtra(EXTRA_ACTION)?.let { runCatching { FinalizeAction.valueOf(it) }.getOrNull() }
-        if (batchId < 0 || action == null) {
+        if ((batchId < 0 && itemId < 0) || action == null) {
             finish()
             return
         }
