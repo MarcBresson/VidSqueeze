@@ -120,6 +120,7 @@ private fun KindTab(
 ) {
     Tab(selected = selected, onClick = onClick) {
         Row(
+            modifier = Modifier.padding(vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
