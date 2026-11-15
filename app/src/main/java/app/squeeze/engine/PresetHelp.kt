@@ -23,60 +23,80 @@ enum class PresetHelpKey {
  * migration mechanical.
  */
 object PresetHelp {
+    /** Common intro shown in every codec dialog, whatever codec is currently selected. */
+    private const val CODEC_INTRO =
+        "A video codec is the format the picture is compressed into — it decides how much space a " +
+            "video takes at the same visual quality. Chips marked \"HW\" use your phone's built-in " +
+            "encoder chip: faster and easier on the battery, but files come out somewhat bigger than " +
+            "with the software encoder for the same look. "
+
     val videoCodec: Map<VideoCodec, HelpEntry> = mapOf(
         VideoCodec.COPY to HelpEntry(
             "Copy video",
-            "Leaves the picture untouched — no space is saved but there is zero quality risk.",
+            CODEC_INTRO + "\"Copy\" skips re-compression: the picture is left untouched, so no space is " +
+                "saved but there is zero quality risk.",
             "Right choice when the file is already well compressed.",
         ),
         VideoCodec.H264 to HelpEntry(
             "H.264",
-            "The universal standard — plays on every device, app and TV made in the last 15 years. " +
-                "Files are roughly 2x bigger than H.265 for the same look.",
+            CODEC_INTRO + "H.264 is the universal standard — it plays on every device, app and TV made " +
+                "in the last 15 years. For the same visual quality its files are roughly twice as big " +
+                "as H.265's.",
             "Pick it when compatibility matters more than size, e.g. sending to someone with an old device.",
         ),
         VideoCodec.H265 to HelpEntry(
             "H.265 (HEVC)",
-            "Today's best balance: about half the size of H.264 at the same quality, and it plays on " +
-                "any recent phone, TV or computer (roughly 2016+).",
+            CODEC_INTRO + "H.265 (also called HEVC) is today's best balance: at the same visual quality " +
+                "its files are about half the size of H.264's, and it plays on any recent phone, TV or " +
+                "computer (roughly 2016+).",
             "The default for archiving your own videos.",
         ),
         VideoCodec.VP9 to HelpEntry(
             "VP9",
-            "Same size savings as H.265 but slower to compress.",
+            CODEC_INTRO + "VP9 compresses about as well as H.265 — roughly half the size of H.264 at the " +
+                "same look — but is slower to compress.",
             "Mainly useful for web embedding.",
         ),
         VideoCodec.AV1 to HelpEntry(
             "AV1",
-            "The newest standard — smallest files of all and royalty-free, but compression is several " +
-                "times slower and older devices can't hardware-decode it.",
+            CODEC_INTRO + "AV1 is the newest standard: the smallest files of all (a bit smaller than " +
+                "H.265) and royalty-free, but compression is several times slower and older devices " +
+                "can't hardware-decode it.",
             "Best when size is everything and time isn't.",
         ),
     )
 
+    /** Common intro shown in every rate-control dialog, whatever mode is currently selected. */
+    private const val RATE_INTRO =
+        "Rate control decides how many bits each second of video gets. Quality modes let the encoder " +
+            "spend whatever the chosen look needs — almost always the right approach; fixed bitrate " +
+            "modes pin the size per second regardless of the picture. "
+
     val rateMode: Map<RateMode, HelpEntry> = mapOf(
         RateMode.CRF to HelpEntry(
             "Quality (CRF)",
-            "You pick how good it should look (lower number = better), and the encoder uses exactly the " +
-                "bits needed. Almost always the right mode.",
+            RATE_INTRO + "In CRF mode you pick how good it should look (lower number = better), and the " +
+                "encoder uses exactly the bits needed.",
             "For H.265, 26 looks about like what most streaming services deliver; 28 is smaller and still " +
                 "fine. Below ~20 you're paying file size for quality you can't see.",
         ),
         RateMode.QUALITY to HelpEntry(
             "Constant quality (hardware)",
-            "Same idea as quality mode, but for your device's built-in encoder — faster, but files come " +
-                "out somewhat bigger.",
-            "Use it when you picked a hardware codec chip and want speed over size.",
+            RATE_INTRO + "Constant quality is the hardware chip's version of the same idea: you pick a " +
+                "quality level and the chip spends what it needs. It is faster, but files come out " +
+                "somewhat bigger than the software encoder's quality mode.",
+            "Use it when you picked a hardware (HW) codec chip and want speed over size.",
         ),
         RateMode.BITRATE to HelpEntry(
             "Bitrate",
-            "You fix the size per second regardless of what's on screen: static scenes waste bits, action " +
-                "scenes run out.",
+            RATE_INTRO + "In bitrate mode you fix the size per second regardless of what's on screen: " +
+                "static scenes waste bits, action scenes run out.",
             "Use only when a target file size is hard-required (e.g. an upload cap).",
         ),
         RateMode.PERCENT to HelpEntry(
             "Percent of source",
-            "Each video keeps a % of its own bitrate — big 4K sources shrink a lot, small ones barely.",
+            RATE_INTRO + "In percent mode each video keeps a % of its own bitrate — big 4K sources " +
+                "shrink a lot, small ones barely.",
             "Handy for batch-shrinking a mixed library.",
         ),
     )
@@ -164,37 +184,47 @@ object PresetHelp {
     // Photo parameters
     // -----------------------------------------------------------------------------------------
 
+    /** Common intro shown in every photo-quality dialog, whatever format is currently selected. */
+    private const val PHOTO_QUALITY_INTRO =
+        "Photo quality sets how heavily the picture is compressed: the smaller the file, the more " +
+            "detail is thrown away. Which direction the number moves depends on the format. "
+
     fun photoQuality(format: ImageFormat): HelpEntry = when (format) {
         ImageFormat.JPEG -> jpegQuality
         ImageFormat.WEBP -> HelpEntry(
             "WebP quality",
-            "Lower number = smaller file, worse looking. WebP is about 25-30% smaller than JPEG at the " +
-                "same quality.",
+            PHOTO_QUALITY_INTRO + "For WebP a higher number looks better and costs more space. WebP " +
+                "itself is about 25-30% smaller than JPEG at the same look.",
             "85 is a good everyday pick for camera photos; below ~75 artefacts appear around sharp edges. " +
-                "Turn on lossless instead for screenshots and graphics.",
+                "The lossless switch keeps every pixel exactly — good for screenshots and graphics, big " +
+                "for camera photos.",
         )
         ImageFormat.AVIF -> HelpEntry(
             "AVIF quality (CRF)",
-            "Opposite scale to quality: lower = better quality and a bigger file.",
-            "30 is a good default; 40+ starts visibly smearing fine detail. AVIF is about 50% smaller " +
-                "than JPEG at the same look — slow to compress but worth it for archives.",
+            PHOTO_QUALITY_INTRO + "For AVIF the scale is reversed: a lower CRF number looks better and " +
+                "costs more space. AVIF itself is about 50% smaller than JPEG at the same look — slow " +
+                "to compress but worth it for archives.",
+            "30 is a good default; 40+ starts visibly smearing fine detail.",
         )
         ImageFormat.PNG -> HelpEntry(
             "PNG (lossless)",
-            "PNG always keeps every pixel exactly — the knobs only affect file size and save time.",
-            "Great for screenshots and graphics, huge for camera photos — pick JPEG/WebP/AVIF for those.",
+            PHOTO_QUALITY_INTRO + "PNG always keeps every pixel exactly, so there is no quality knob — " +
+                "its settings only affect file size and save time.",
+            "Great for screenshots and graphics, huge for camera photos — pick JPEG, WebP or AVIF for those.",
         )
         ImageFormat.JPEG_XL -> HelpEntry(
             "JPEG XL quality",
-            "100 = mathematically lossless; 90 = visually lossless (libjxl's own default).",
-            "90 for archives that should look identical to the original; below 80 treat as lossy. " +
-                "JPEG XL can also losslessly re-shrink existing JPEGs, but app support is limited today.",
+            PHOTO_QUALITY_INTRO + "For JPEG XL a higher number looks better and costs more space: " +
+                "100 = mathematically lossless, 90 = visually lossless (libjxl's own default). JPEG XL " +
+                "itself matches AVIF's savings and can also losslessly re-shrink existing JPEGs, but " +
+                "app support is limited today.",
+            "90 for archives that should look identical to the original; below 80 treat as lossy.",
         )
     }
 
     private val jpegQuality = HelpEntry(
         "JPEG quality",
-        "Lower number = smaller file, worse looking.",
+        PHOTO_QUALITY_INTRO + "For JPEG a higher number looks better and costs more space.",
         "85 = visually indistinguishable from the original for camera photos; below ~75 artefacts appear " +
             "around sharp edges; above 95 pays size for nothing.",
     )
