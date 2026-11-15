@@ -39,7 +39,7 @@ import app.squeeze.feature.compress.CompressionSheetViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    onOpenHistory: () -> Unit,
+    onOpenHistory: (readyBatchIds: List<Long>) -> Unit,
     vm: HomeViewModel = hiltViewModel(),
     sheetVm: CompressionSheetViewModel = hiltViewModel(),
 ) {
@@ -77,7 +77,7 @@ fun HomeScreen(
             item(key = "banner") { AppBanner() }
 
             if (queue.items.isNotEmpty() || queue.ready.isNotEmpty()) {
-                item(key = "jobs") { JobProgressWidget(queue, onClick = onOpenHistory) }
+                item(key = "jobs") { JobProgressWidget(queue, onClick = { onOpenHistory(queue.ready.map { it.batch.id }) }) }
             }
 
             if (libraryAccess && autoEnabled == true) {

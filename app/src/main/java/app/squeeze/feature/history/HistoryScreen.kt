@@ -107,7 +107,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun HistoryScreen(
     onCompare: (Long) -> Unit = {},
-    focusBatch: Long? = null,
+    focusBatches: Set<Long> = emptySet(),
     onFocusConsumed: () -> Unit = {},
     vm: HistoryViewModel = hiltViewModel(),
 ) {
@@ -160,14 +160,14 @@ fun HistoryScreen(
                 )
             }
             HorizontalPager(pagerState, Modifier.fillMaxSize()) { page ->
-                if (page == 0) HistoryList(vm, focusBatch, onFocusConsumed, onCompare) else StatsPane(vm)
+                if (page == 0) HistoryList(vm, focusBatches, onFocusConsumed, onCompare) else StatsPane(vm)
             }
         }
     }
 }
 
 @Composable
-private fun HistoryList(vm: HistoryViewModel, target: Long?, onTargetConsumed: () -> Unit, onCompare: (Long) -> Unit) {
+private fun HistoryList(vm: HistoryViewModel, targets: Set<Long>, onTargetConsumed: () -> Unit, onCompare: (Long) -> Unit) {
     val history by vm.filteredHistory.collectAsStateWithLifecycle()
     val jobs by vm.filteredJobs.collectAsStateWithLifecycle()
     val filters by vm.filters.collectAsStateWithLifecycle()
@@ -175,7 +175,7 @@ private fun HistoryList(vm: HistoryViewModel, target: Long?, onTargetConsumed: (
     val resultMissing by vm.resultMissing.collectAsStateWithLifecycle()
     var logsOf by rememberSaveable { mutableStateOf<Long?>(null) }
     val listState = rememberLazyListState()
-    var highlightedBatch by rememberSaveable { mutableStateOf<Long?>(null) }
+    var highlightedBatches by rememberSaveable { mutableStateOf(emptyList<Long>()) }
     val entries = history ?: return
     if (entries.isEmpty() && jobs.items.isEmpty()) {
         if (filters.isEmpty) {
@@ -185,24 +185,31 @@ private fun HistoryList(vm: HistoryViewModel, target: Long?, onTargetConsumed: (
         }
         return
     }
-    LaunchedEffect(target, entries) {
-        if (target == null) return@LaunchedEffect
-        val entryIndex = entries.indexOfFirst { it.batch.id == target }
-        if (entryIndex < 0) {
+    LaunchedEffect(targets, entries) {
+        if (targets.isEmpty()) return@LaunchedEffect
+        val indexById = entries.withIndex().associate { (index, entry) -> entry.batch.id to index }
+        val indices = targets.mapNotNull(indexById::get).sorted()
+        if (indices.size < targets.size && !filters.isEmpty) {
             // A deep-linked batch hidden by the active filters: clear them so it becomes visible.
-            if (!filters.isEmpty) {
-                vm.clearFilters()
-                return@LaunchedEffect
-            }
-            return@LaunchedEffect // batch not in this list (yet): give up silently
+            vm.clearFilters()
+            return@LaunchedEffect
         }
-        // The list starts with the active-jobs section: a controls row plus one row per job.
+        if (indices.isEmpty()) return@LaunchedEffect // batches not in this list (yet): give up silently
         val jobsHeader = if (jobs.items.isEmpty()) 0 else 1 + jobs.items.size
-        listState.scrollToItem(jobsHeader + entryIndex)
-        highlightedBatch = target
-        onTargetConsumed()
-        delay(5_000) // the highlight is a momentary pointer, not a permanent state
-        if (highlightedBatch == target) highlightedBatch = null
+        // Close together in the list (single batch always is): highlight them all, like a
+        // notification tap does. Spread across the list: narrow it down to the pending results
+        // with the awaiting-action status filter instead.
+        val span = indices.last() - indices.first() + 1
+        if (span <= indices.size + SPREAD_TOLERANCE) {
+            listState.scrollToItem(jobsHeader + indices.first())
+            highlightedBatches = targets.toList()
+            onTargetConsumed()
+            delay(5_000) // the highlight is a momentary pointer, not a permanent state
+            if (highlightedBatches == targets.toList()) highlightedBatches = emptyList()
+        } else {
+            vm.setFilters(filters.copy(statuses = setOf(VideoStatusFilter.AWAITING_ACTION)))
+            onTargetConsumed()
+        }
     }
     LazyColumn(
         state = listState,
@@ -221,13 +228,16 @@ private fun HistoryList(vm: HistoryViewModel, target: Long?, onTargetConsumed: (
                 onCompare,
                 { logsOf = it },
                 vm::refreshMissing,
-                highlighted = entry.batch.id == highlightedBatch,
-                expandItem = entry.batch.id == highlightedBatch,
+                highlighted = entry.batch.id in highlightedBatches,
+                expandItem = entry.batch.id in highlightedBatches,
             )
         }
     }
     logsOf?.let { LogSheet(it, vm, onDismiss = { logsOf = null }) }
 }
+
+/** How many unrelated entries may sit between focused batches and still count as "close together". */
+private const val SPREAD_TOLERANCE = 2
 
 @Composable
 private fun HistoryCard(

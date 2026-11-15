@@ -84,7 +84,7 @@ fun AppNav(
     LaunchedEffect(notificationTarget) {
         if (notificationTarget != null) {
             Log.d(TAG, "switching to History for batch $notificationTarget")
-            focus.set(notificationTarget)
+            focus.set(listOf(notificationTarget))
             onTargetConsumed()
             nav.navigateToTab(Routes.HISTORY)
         }
@@ -133,7 +133,12 @@ private fun NavGraphBuilder.appGraph(nav: NavHostController, focus: HistoryFocus
             nav.navigate(Routes.HOME) { popUpTo(Routes.ONBOARDING) { inclusive = true } }
         })
     }
-    composable(Routes.HOME) { HomeScreen(onOpenHistory = { nav.navigateToTab(Routes.HISTORY) }) }
+    composable(Routes.HOME) {
+        HomeScreen(onOpenHistory = { readyIds ->
+            if (readyIds.isNotEmpty()) focus.set(readyIds)
+            nav.navigateToTab(Routes.HISTORY)
+        })
+    }
     composable(Routes.SETTINGS) {
         SettingsScreen(
             onOpenPermissions = { nav.navigate(Routes.PERMISSIONS) },
@@ -160,7 +165,7 @@ private fun NavGraphBuilder.appGraph(nav: NavHostController, focus: HistoryFocus
     composable(Routes.HISTORY) {
         HistoryScreen(
             onCompare = { nav.navigate(Routes.compare(it)) },
-            focusBatch = focus.batch,
+            focusBatches = focus.batches.toSet(),
             onFocusConsumed = focus::consume,
         )
     }
@@ -179,20 +184,21 @@ private fun NavGraphBuilder.appGraph(nav: NavHostController, focus: HistoryFocus
 }
 
 /**
- * The batch History should focus on, set by a result-notification tap and consumed by HistoryScreen.
- * A class with a stable identity (not per-tap values) so the NavHost graph builder capturing it is
- * never invalidated: a rebuilt graph resets the back stack to the start destination.
+ * The History focus: the batches a Home "results ready to review" tap or a result-notification tap
+ * points at, consumed by HistoryScreen. A class with a stable identity (not per-tap values) so the
+ * NavHost graph builder capturing it is never invalidated: a rebuilt graph resets the back stack to
+ * the start destination.
  */
 private class HistoryFocus {
-    var batch by mutableStateOf<Long?>(null)
+    var batches by mutableStateOf<List<Long>>(emptyList())
         private set
 
-    fun set(batchId: Long) {
-        batch = batchId
+    fun set(ids: List<Long>) {
+        batches = ids
     }
 
     fun consume() {
-        batch = null
+        batches = emptyList()
     }
 }
 
