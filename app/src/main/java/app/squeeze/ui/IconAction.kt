@@ -1,6 +1,5 @@
 package app.squeeze.ui
 
-import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -21,12 +20,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
 /**
- * A compact action button that shows only its icon. Hovering reveals [label] as a tooltip;
- * on touch, where there is no hover, a tap shows the label as a toast while running [onClick].
+ * A compact action button that shows only its icon. Hovering reveals [label] as a tooltip; on
+ * touch the label is read as the button's content description.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,7 +35,6 @@ fun IconAction(
     modifier: Modifier = Modifier,
     tint: Color = MaterialTheme.colorScheme.primary,
 ) {
-    val context = LocalContext.current
     val interactionSource = remember { MutableInteractionSource() }
     TooltipBox(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
@@ -55,10 +52,7 @@ fun IconAction(
                 .clickable(
                     interactionSource = interactionSource,
                     indication = ripple(),
-                    onClick = {
-                        Toast.makeText(context, label, Toast.LENGTH_SHORT).show()
-                        onClick()
-                    },
+                    onClick = onClick,
                 ),
             contentAlignment = Alignment.Center,
         ) {

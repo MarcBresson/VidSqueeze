@@ -49,6 +49,9 @@ class FinalizeWorker @AssistedInject constructor(
                 workDataOf(
                     KEY_ORIGINALS_TO_DELETE to report.originalsToDelete.take(MAX_URIS).toTypedArray(),
                     KEY_NEEDS_CONSENT to report.needsConsent,
+                    KEY_REPLACED to report.replaced,
+                    KEY_SAVED_COPIES to report.savedAsCopy,
+                    KEY_FAILURES to report.failures.size,
                 ),
             )
         } catch (e: CancellationException) {
@@ -67,6 +70,12 @@ class FinalizeWorker @AssistedInject constructor(
         const val KEY_ORIGINALS_TO_DELETE = "originals_to_delete"
         /** Output: how many originals refused the write because we had no approval. */
         const val KEY_NEEDS_CONSENT = "needs_consent"
+        /** Output: how many originals were replaced in place. */
+        const val KEY_REPLACED = "replaced"
+        /** Output: how many results were saved as copies. */
+        const val KEY_SAVED_COPIES = "saved_copies"
+        /** Output: how many items failed. */
+        const val KEY_FAILURES = "failures"
         private const val MAX_URIS = 100
         private const val TAG = "FinalizeWorker"
     }

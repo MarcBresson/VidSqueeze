@@ -24,7 +24,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import androidx.work.Data
 import app.squeeze.R
 import app.squeeze.ui.theme.SqueezeTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -124,9 +126,14 @@ class FinalizeActivity : ComponentActivity() {
         lifecycleScope.launch {
             val id = if (itemId >= 0) manager.replaceItem(itemId) else manager.replace(batchId)
             val info = workManager.getWorkInfoByIdFlow(id).first { it?.state?.isFinished == true }
-            val toDelete = info?.outputData?.getStringArray(FinalizeWorker.KEY_ORIGINALS_TO_DELETE).orEmpty().map(Uri::parse)
+            if (info?.state != WorkInfo.State.SUCCEEDED) {
+                working = false
+                toastAndFinish(R.string.finalize_failed)
+                return@launch
+            }
+            val toDelete = info.outputData.getStringArray(FinalizeWorker.KEY_ORIGINALS_TO_DELETE).orEmpty().map(Uri::parse)
             working = false
-            val refused = info?.outputData?.getInt(FinalizeWorker.KEY_NEEDS_CONSENT, 0) ?: 0
+            val refused = info.outputData.getInt(FinalizeWorker.KEY_NEEDS_CONSENT, 0)
             if (refused > 0 && !askedAfterRefusal) {
                 // The write was refused although we thought we had access (for example media
                 // management does not cover this file): ask the user for these originals.
@@ -135,6 +142,7 @@ class FinalizeActivity : ComponentActivity() {
                 return@launch
             }
             if (toDelete.isEmpty()) {
+                toastReplaceResult(info.outputData)
                 finish()
                 return@launch
             }
@@ -150,6 +158,19 @@ class FinalizeActivity : ComponentActivity() {
     private fun toastAndFinish(message: Int) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         finish()
+    }
+
+    /** Toasts what the replace run did: the success, a partial result or a plain failure. */
+    private fun toastReplaceResult(data: Data) {
+        val handled = data.getInt(FinalizeWorker.KEY_REPLACED, 0) + data.getInt(FinalizeWorker.KEY_SAVED_COPIES, 0)
+        val failed = data.getInt(FinalizeWorker.KEY_FAILURES, 0) + data.getInt(FinalizeWorker.KEY_NEEDS_CONSENT, 0)
+        val message = when {
+            handled + failed == 0 -> getString(R.string.finalize_nothing)
+            failed == 0 -> resources.getQuantityString(R.plurals.finalize_replaced, handled, handled)
+            handled == 0 -> getString(R.string.finalize_failed)
+            else -> getString(R.string.finalize_replace_partial, handled, handled + failed)
+        }
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 
     companion object {
