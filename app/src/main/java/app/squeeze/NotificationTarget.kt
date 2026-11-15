@@ -6,6 +6,9 @@ import android.content.Intent
 object NotificationTarget {
     const val EXTRA_BATCH_ID = "app.squeeze.extra.BATCH_ID"
 
+    /** Marks the intent a result-notification tap fires; some OEM builds drop extras from action-less intents. */
+    const val ACTION_OPEN_HISTORY = "app.squeeze.action.OPEN_HISTORY"
+
     private const val NO_BATCH = -1L
 
     /** The batch id carried by a result-notification tap, or null for any other launch. */

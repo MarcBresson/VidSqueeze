@@ -1,5 +1,6 @@
 package app.squeeze.ui.nav
 
+import android.util.Log
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -13,6 +14,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -39,6 +43,8 @@ import app.squeeze.feature.settings.OnboardingScreen
 import app.squeeze.feature.settings.PermissionsScreen
 import app.squeeze.feature.settings.SettingsScreen
 import app.squeeze.feature.compress.NEW_PRESET_ID
+
+private const val TAG = "NotifNav"
 
 object Routes {
     const val HOME = "home"
@@ -67,11 +73,21 @@ fun AppNav(
     onTargetConsumed: () -> Unit = {},
 ) {
     val nav = rememberNavController()
+    val focus = remember { HistoryFocus() }
     val destination = nav.currentBackStackEntryAsState().value?.destination
     val showBar = TopLevelDestination.entries.any { tab -> destination?.hierarchy?.any { it.route == tab.route } == true }
     // A result-notification tap switches to History even while another screen is on top.
+    // The NavHost graph is remembered keyed on (startDestination, builder): feeding it the tap
+    // values rebuilds the graph when they change, and setGraph resets the back stack to the
+    // start destination — History flashed, then the app dropped back to Home. So the graph only
+    // ever sees the stable [focus] holder, and the start destination is frozen once.
     LaunchedEffect(notificationTarget) {
-        if (notificationTarget != null) nav.navigateToTab(Routes.HISTORY)
+        if (notificationTarget != null) {
+            Log.d(TAG, "switching to History for batch $notificationTarget")
+            focus.set(notificationTarget)
+            onTargetConsumed()
+            nav.navigateToTab(Routes.HISTORY)
+        }
     }
     // The screens inside handle the status bar and, without the bar, the navigation bar themselves.
     Scaffold(
@@ -82,14 +98,16 @@ fun AppNav(
         val bottom = PaddingValues(bottom = inner.calculateBottomPadding())
         NavHost(
             navController = nav,
-            startDestination = when {
-                startWithOnboarding -> Routes.ONBOARDING
-                notificationTarget != null -> Routes.HISTORY
-                else -> Routes.HOME
+            startDestination = remember {
+                when {
+                    startWithOnboarding -> Routes.ONBOARDING
+                    notificationTarget != null -> Routes.HISTORY
+                    else -> Routes.HOME
+                }
             },
             modifier = Modifier.padding(bottom).consumeWindowInsets(bottom),
         ) {
-            appGraph(nav, notificationTarget, onTargetConsumed)
+            appGraph(nav, focus)
         }
     }
 }
@@ -109,7 +127,7 @@ private fun BottomBar(nav: NavHostController) {
     }
 }
 
-private fun NavGraphBuilder.appGraph(nav: NavHostController, notificationTarget: Long?, onTargetConsumed: () -> Unit) {
+private fun NavGraphBuilder.appGraph(nav: NavHostController, focus: HistoryFocus) {
     composable(Routes.ONBOARDING) {
         OnboardingScreen(onDone = {
             nav.navigate(Routes.HOME) { popUpTo(Routes.ONBOARDING) { inclusive = true } }
@@ -142,8 +160,8 @@ private fun NavGraphBuilder.appGraph(nav: NavHostController, notificationTarget:
     composable(Routes.HISTORY) {
         HistoryScreen(
             onCompare = { nav.navigate(Routes.compare(it)) },
-            focusBatch = notificationTarget,
-            onFocusConsumed = onTargetConsumed,
+            focusBatch = focus.batch,
+            onFocusConsumed = focus::consume,
         )
     }
     composable(Routes.COMPARE, arguments = listOf(navArgument("itemId") { type = NavType.LongType })) {
@@ -157,6 +175,24 @@ private fun NavGraphBuilder.appGraph(nav: NavHostController, notificationTarget:
     }
     composable(Routes.PRESET_EDIT, arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
         PresetEditorScreen(presetId = requireNotNull(entry.arguments?.getString("id")), onBack = { nav.popBackStack() })
+    }
+}
+
+/**
+ * The batch History should focus on, set by a result-notification tap and consumed by HistoryScreen.
+ * A class with a stable identity (not per-tap values) so the NavHost graph builder capturing it is
+ * never invalidated: a rebuilt graph resets the back stack to the start destination.
+ */
+private class HistoryFocus {
+    var batch by mutableStateOf<Long?>(null)
+        private set
+
+    fun set(batchId: Long) {
+        batch = batchId
+    }
+
+    fun consume() {
+        batch = null
     }
 }
 

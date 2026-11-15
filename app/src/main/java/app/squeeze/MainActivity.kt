@@ -3,6 +3,7 @@ package app.squeeze
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.SystemBarStyle
@@ -23,7 +24,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        NotificationTarget.batchIdFrom(intent)?.let(app::openFromNotification)
+        handleNotificationTap(intent, via = "onCreate savedState=${savedInstanceState != null}")
         setContent {
             val ui by app.ui.collectAsStateWithLifecycle()
             val notificationTarget by app.notificationTarget.collectAsStateWithLifecycle()
@@ -53,6 +54,17 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        NotificationTarget.batchIdFrom(intent)?.let(app::openFromNotification)
+        handleNotificationTap(intent, via = "onNewIntent")
+    }
+
+    /** Single funnel for the notification-tap extra so a device log shows exactly where a tap lands. */
+    private fun handleNotificationTap(intent: Intent, via: String) {
+        val batch = NotificationTarget.batchIdFrom(intent)
+        Log.d(TAG, "tap via $via: action=${intent.action} flags=0x${Integer.toHexString(intent.flags)} batchId=$batch")
+        batch?.let(app::openFromNotification)
+    }
+
+    private companion object {
+        const val TAG = "NotifNav"
     }
 }
