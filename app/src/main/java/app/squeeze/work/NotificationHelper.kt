@@ -202,7 +202,9 @@ class NotificationHelper @Inject constructor(@ApplicationContext private val con
     private fun openHistory(batchId: Long): PendingIntent = PendingIntent.getActivity(
         context, RESULT_REQUEST_BASE + batchId.toInt(),
         Intent(context, MainActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            // singleTask routes an existing task's instance to onNewIntent; NEW_TASK keeps the
+            // routing explicit so this also holds when the app is already in the foreground.
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .putExtra(NotificationTarget.EXTRA_BATCH_ID, batchId),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
