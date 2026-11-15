@@ -317,7 +317,6 @@
     <string name="auto_title">Auto compression</string>
     <string name="settings_auto_parameters">Auto compression parameters</string>
     <string name="settings_auto_parameters_hint">Schedule, rules, filters and output</string>
-    <string name="settings_auto_disabled_hint">Turn on auto compression to configure</string>
     <string name="auto_enable">Compress old videos automatically</string>
     <string name="auto_intro">While you are not using the phone, Squeeze compresses videos that are older than the ages you choose below. Your originals stay untouched unless you choose to replace them.</string>
     <string name="auto_needs_access">Squeeze needs access to your videos to find the old ones.</string>

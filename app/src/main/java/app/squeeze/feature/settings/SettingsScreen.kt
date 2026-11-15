@@ -45,7 +45,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -129,19 +128,14 @@ private fun AutoSection(
             Text(stringResource(R.string.auto_needs_access), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             Button(onClick = askPermissions) { Text(stringResource(R.string.auto_grant_access)) }
         }
-        val enabled = config.enabled
         Column(
             Modifier
                 .fillMaxWidth()
-                .alpha(if (enabled) 1f else 0.4f)
-                .clickable(enabled = enabled, role = Role.Button, onClick = onOpenAuto)
+                .clickable(role = Role.Button, onClick = onOpenAuto)
                 .padding(vertical = 6.dp),
         ) {
             Text(stringResource(R.string.settings_auto_parameters), style = MaterialTheme.typography.bodyLarge)
-            Text(
-                stringResource(if (enabled) R.string.settings_auto_parameters_hint else R.string.settings_auto_disabled_hint),
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Text(stringResource(R.string.settings_auto_parameters_hint), style = MaterialTheme.typography.bodySmall)
         }
     }
 }
