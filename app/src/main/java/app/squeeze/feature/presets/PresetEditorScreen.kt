@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.squeeze.R
-import app.squeeze.feature.compress.CommandPreviewCard
 import app.squeeze.feature.compress.CompressionSheetViewModel
 import app.squeeze.feature.compress.NEW_PRESET_ID
 import app.squeeze.feature.compress.MessageToast
@@ -57,7 +56,6 @@ fun PresetEditorScreen(presetId: String, onBack: () -> Unit, vm: CompressionShee
         ) {
             PresetHeader(ui, vm)
             PresetForm(ui, vm)
-            CommandPreviewCard(ui)
         }
     }
     MessageToast(ui.message, vm::messageShown)
